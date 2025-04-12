@@ -38,7 +38,7 @@ int main() {
 		return 1;
 	}
 
-	Character character (renderer, "assets/sprite/arcanist.png", 24, 24, 100, 100);
+	Character character (renderer, "assets/sprites/arcanist.png", 24, 24, 100, 100);
 
 	// Tilemap map(&sheet, 24, 24, 10, 10, "assets/maps/test_map.txt");
 
