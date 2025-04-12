@@ -29,7 +29,7 @@ void Entity::setAnimations(int** new_animations) {
     animations = new_animations;
 }
 
-void Entity::render(SDL_Renderer* renderer) {
+void Entity::render(SDL_Renderer* renderer, float cameraX, float cameraY) {
     if (!spritesheet || !animations || !animations[currentAnimation]) return;
 
     int sprite_index = animations[currentAnimation][currentStage];
@@ -37,7 +37,12 @@ void Entity::render(SDL_Renderer* renderer) {
 
     spritesheet->select_sprite(sprite_index);
     SDL_RendererFlip flip = flipped ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-    spritesheet->draw(renderer, static_cast<int>(x), static_cast<int>(y), spriteWidth, spriteHeight, flip);
+
+    // render with camera offset
+    int screenX = static_cast<int>(x - cameraX);
+    int screenY = static_cast<int>(y - cameraY);
+
+    spritesheet->draw(renderer, screenX, screenY, spriteWidth, spriteHeight, flip);
 }
 
 SDL_Point Entity::getPosition() const {

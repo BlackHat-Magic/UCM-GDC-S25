@@ -205,14 +205,14 @@ void Geezer::moveToDestination (float deltaTime) {
     // but this is kinda a distraction, so worry about it later
 }
 
-void Geezer::render(SDL_Renderer* renderer) {
+void Geezer::render(SDL_Renderer* renderer, float cameraX, float cameraY) {
     // Render the geezer itself
     // MovementAttackAnimated::render(renderer);
-    Entity::render(renderer);
+    Entity::render(renderer, cameraX, cameraY);
 
     // Render each active fireball.
     for (auto fb : projectiles)
-        fb->render(renderer);
+        fb->render(renderer, cameraX, cameraY);
 }
 
 float Geezer::distanceToTarget() const {

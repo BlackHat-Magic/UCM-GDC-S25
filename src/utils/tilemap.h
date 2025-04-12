@@ -13,7 +13,7 @@ public:
     void setTile(int x, int y, int tile_index);
     int getTile(int x, int y) const;
 
-    void draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w = -1, int dest_h = -1) const;
+    void draw(SDL_Renderer *renderer, float cameraX, float cameraY, int dest_w = -1, int dest_h = -1) const;
     Direction intersects_rect(float x, float y, float w, float h) const;
     float raycast(float x, float y, float angle) const;
 

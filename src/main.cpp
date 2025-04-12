@@ -46,7 +46,7 @@ int main() {
 
 	// spritesheet, tilemap, inputhandler, player
 	Spritesheet sheet(renderer, "assets/tilesets/kenney_tiny-dungeon/tilemap_packed.png", 16, 16);
-	Tilemap map(&sheet, 24, 24, 10, 10, new int[2] {0, -1 } ,"assets/maps/test_map.txt");
+	Tilemap map(&sheet, 16, 16, 80, 30, new int[2] {0, -1 } ,"assets/maps/test_map.txt");
 	InputHandler handler;
 
 	// create player
@@ -74,6 +74,11 @@ int main() {
 	bool quit = false;
 	SDL_Event event;
 	float lastTime = SDL_GetTicks () / 1000.0f;
+
+	// camera setup
+	float cameraX = 0.0f;
+	float cameraY = 0.0f;
+	const float cameraScrollSpeed = 16.0f;
 
 	SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 	
@@ -109,6 +114,9 @@ int main() {
 		float time = currentTime / 1000.0f;
 		float deltaTime = time - lastTime;
 		lastTime = time;
+
+		// camera scroll
+		cameraX += cameraScrollSpeed * deltaTime;
 		
 		// update player
 		player.update (time, deltaTime);
@@ -116,11 +124,14 @@ int main() {
 		// update geezer
 		geezer.update (time, deltaTime);
 
-		// render updates
+		// clear renderer
 		SDL_RenderClear (renderer);
-		map.draw (renderer, 0, 0);
-		player.render (renderer);
-		geezer.render (renderer);
+
+		// render with camera offset
+		map.draw (renderer, cameraX, cameraY);
+		player.render (renderer, cameraX, cameraY);
+		geezer.render (renderer, cameraX, cameraY);
+
 		SDL_RenderPresent (renderer);
 
 		// 60(ish) fps

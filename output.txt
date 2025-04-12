@@ -1,0 +1,1494 @@
+```text
+.
+├── CMakeLists.txt
+├── output.sh
+├── output.txt
+├── README.md
+├── run.sh
+└── src
+    ├── game
+    │   ├── entity.cpp
+    │   ├── entity.h
+    │   ├── fireball.cpp
+    │   ├── fireball.h
+    │   ├── geezer.cpp
+    │   ├── geezer.h
+    │   ├── movement_attack_animated.cpp
+    │   ├── movement_attack_animated.h
+    │   ├── player.cpp
+    │   └── player.h
+    ├── main.cpp
+    └── utils
+        ├── audio.cpp
+        ├── audio.h
+        ├── direction.h
+        ├── input.cpp
+        ├── input.h
+        ├── spritesheet.cpp
+        ├── spritesheet.h
+        ├── tilemap.cpp
+        └── tilemap.h
+
+4 directories, 25 files
+```
+
+
+`./src/game/entity.cpp`:
+```c++
+#include "entity.h"
+#include <cstdlib>
+
+Entity::Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations)
+    : x(x), y(y), spriteWidth(sprite_width), spriteHeight(sprite_height), flipped(false),
+      currentStage(0), currentAnimation(0), animations(animations)
+{
+    spritesheet = new Spritesheet(renderer, sprite_path, sprite_width, sprite_height);
+}
+
+Entity::~Entity() {
+    delete spritesheet;
+
+    if (animations) {
+        for (int i = 0; animations[i] != nullptr; ++i) {
+            delete[] animations[i];  // Free each animation track (int*)
+        }
+        delete[] animations;  // Free the array of pointers
+    }
+}
+
+void Entity::setAnimations(int** new_animations) {
+    if (animations) {
+        for (int i = 0; animations[i] != nullptr; ++i) {
+            delete[] animations[i];  // Free each animation track (int*)
+        }
+        delete[] animations;  // Free the array of pointers
+    }
+    animations = new_animations;
+}
+
+void Entity::render(SDL_Renderer* renderer) {
+    if (!spritesheet || !animations || !animations[currentAnimation]) return;
+
+    int sprite_index = animations[currentAnimation][currentStage];
+    if (sprite_index < 0) return;
+
+    spritesheet->select_sprite(sprite_index);
+    SDL_RendererFlip flip = flipped ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    spritesheet->draw(renderer, static_cast<int>(x), static_cast<int>(y), spriteWidth, spriteHeight, flip);
+}
+
+SDL_Point Entity::getPosition() const {
+    return SDL_Point{ static_cast<int>(x), static_cast<int>(y) };
+}
+
+void Entity::setPosition(int new_x, int new_y) {
+    x = static_cast<float>(new_x);
+    y = static_cast<float>(new_y);
+}
+
+void Entity::setAnimation(int animation_index) {
+    currentAnimation = animation_index;
+    currentStage = 0;
+}
+
+void Entity::setStage(int stage_index) {
+    currentStage = stage_index;
+}
+
+void Entity::setFlipped(bool flip) {
+    flipped = flip;
+}
+
+bool Entity::advanceAnimation() {
+    if (!animations || !animations[currentAnimation])
+        return false;
+
+    ++currentStage;
+    if (animations[currentAnimation][currentStage] < 0) {
+        currentStage = 0;
+        return true;
+    }
+    return false;
+}
+
+void Entity::setSpriteSheet(Spritesheet* sheet) {
+    if (spritesheet) {
+        delete spritesheet;
+    }
+    spritesheet = sheet;
+}
+
+void Entity::setSpriteSize(int width, int height) {
+    spriteWidth = width;
+    spriteHeight = height;
+}
+```
+
+`./src/game/entity.h`:
+```c++
+#pragma once
+#include <SDL2/SDL.h>
+#include "../utils/spritesheet.h"
+
+class Entity {
+public:
+    Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations);
+    virtual ~Entity();
+
+    virtual void update(float time, float deltaTime) = 0;
+    void render(SDL_Renderer* renderer);
+
+    SDL_Point getPosition() const;
+    void setAnimations(int** animations);
+    void setPosition(int x, int y);
+    void setAnimation(int animation_index);
+    void setStage(int stage_index);
+    bool advanceAnimation();
+    void setFlipped(bool flip);
+
+    void setSpriteSheet(Spritesheet* sheet);
+    void setSpriteSize(int width, int height);
+    float x, y;
+
+private:
+    Spritesheet* spritesheet;
+    int spriteWidth, spriteHeight;
+    int currentStage;
+    int currentAnimation;
+    bool flipped;
+    int** animations;
+};```
+
+`./src/game/fireball.cpp`:
+```c++
+#include "fireball.h"
+
+Fireball::Fireball(SDL_Renderer* renderer, const char* sprite_path,
+                   int sprite_width, int sprite_height, float x, float y,
+                   float vx, float vy, Entity* owner, float damage)
+    : Entity(renderer, sprite_path, sprite_width, sprite_height, x, y, nullptr),
+      vx(vx),
+      vy(vy),
+      owner(owner),
+      damage(damage)
+{
+    int* static_frame = new int[2]{0, -1};
+    int** fireball_animations = new int*[2];
+    fireball_animations[0] = static_frame;
+    fireball_animations[1] = nullptr;
+
+    setSpriteSheet(new Spritesheet(
+        renderer,
+        sprite_path,
+        sprite_width,
+        sprite_height 
+    ));
+    setSpriteSize(sprite_width, sprite_height);
+    setPosition(static_cast<int>(x), static_cast<int>(y));
+    setAnimations(fireball_animations);
+
+    // Set animation state
+    setAnimation(0);
+    setStage(0);
+}
+
+void Fireball::update(float time, float deltaTime) {
+    // Move the fireball along its velocity
+    x += vx * deltaTime;
+    y += vy * deltaTime;
+}
+
+bool Fireball::isOffScreen(int screenWidth, int screenHeight) const {
+    SDL_Point pos = getPosition();
+    return pos.x < 0 || pos.x > screenWidth || pos.y < 0 ||
+           pos.y > screenHeight;
+}
+```
+
+`./src/game/fireball.h`:
+```c++
+#pragma once
+#include "entity.h"
+#include "utils/spritesheet.h"
+#include <SDL2/SDL.h>
+#include <cmath>
+
+class Fireball : public Entity {
+public:
+    Fireball(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
+             int sprite_height, float x, float y, float vx, float vy,
+             Entity* owner, float damage);
+    // ~Fireball();
+
+    // For the projectile, update its position using its velocity.
+    void update(float time, float deltaTime) override;
+
+    // Test if the projectile is off-screen.
+    bool isOffScreen(int screenWidth, int screenHeight) const;
+
+    Entity* getOwner() const { return owner; }
+    float getDamage() const { return damage; }
+
+private:
+    float vx, vy;
+    Entity* owner; // pointer to the entity that fired the projectile
+    float damage;
+};
+```
+
+`./src/game/geezer.cpp`:
+```c++
+#include "geezer.h"
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
+#include <iostream>
+
+Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
+               int sprite_height, float x, float y, int** animations,
+               float animation_speed, float movement_speed, Entity* target)
+    : MovementAttackAnimated(renderer, sprite_path, sprite_width, sprite_height,
+                x, y, animations, animation_speed, movement_speed),
+        currentState(G_IDLE),
+        prevState(G_IDLE),
+        renderer(renderer),
+        target(target),
+        attackInterval(1.0f),
+        withdrawAttackInterval(2.0f),
+        lastAttackTime(0.0f),
+        lastPathfindTime(0.0f),
+        sightRange(256.0f),
+        maxAttackRange(128.0f),
+        idealOuter(112.0f),
+        idealAttackRange(96.0f),
+        idealInner(80.0f),
+        minAttackRange(64.0f),
+        projectileSpeed(300.0f),
+        shotVariance(0.045f),
+        posVariance(0.35f),
+        gen(rd()) {
+    // Set an initial animation if needed.
+    setAnimation(0);
+    setStage(0);
+}
+
+Geezer::~Geezer() {
+    for (Fireball* fb : projectiles) {
+        delete fb;
+    }
+}
+
+void Geezer::update(float time, float deltaTime) {
+    // Decide state based on distance to target
+    float dist = distanceToTarget();
+    
+    // update previous state
+    prevState = currentState;
+
+    // set current state
+    if (dist > sightRange) {
+        currentState = G_IDLE;
+    } else if (dist > maxAttackRange) {
+        currentState = G_CHASE;
+    } else if (dist > idealOuter) {
+        currentState = G_APPROACH;
+    } else if (dist > idealInner) {
+        currentState = G_ATTACK;
+    } else if (dist > minAttackRange) {
+        currentState = G_WITHDRAW;
+    } else {
+        currentState = G_FLEE;
+    }
+
+    // if state has changed, we have a new target destination
+    if (prevState != currentState) {
+        setDestination(time);
+    } else if (time - lastPathfindTime > 2.0f) {
+        // new position if we haven't moved in >2sec
+        setDestination(time);
+    }
+    
+    // check AGAIN if the player is too far
+    // because for some god-damned reason it sometimes just doesn't
+    // set a new destination
+    // but for *some reason*, this is reliable
+
+    // wait I understand now. It's possible for the player to move
+    // to a new position that necessitates a new destination
+    // without the Geezer changing state in under 2 seconds
+    // which results in the Geezer having an outdated destination
+    SDL_Point pt = target->getPosition();
+    float targetX = static_cast<float>(pt.x);
+    float targetY = static_cast<float>(pt.y);
+    float destdx = targetX - destinationX;
+    float destdy = targetY - destinationY;
+    float destDistToTarget = std::sqrt(destdx*destdx + destdy*destdy);
+    if (destDistToTarget > maxAttackRange || destDistToTarget < minAttackRange) {
+        setDestination (time);
+    }
+
+    // if we're in a moving state, move toward destination
+    moveToDestination(deltaTime);
+
+    // if we can fire, fire
+    fireAtTarget(time);
+
+    // Update animation (provided by MovementAttackAnimated)
+    advanceAnimation();
+
+    // update and clean up projectiles
+    const int screenWidth = 640;
+    const int screenHeight = 480;
+    projectiles.erase(std::remove_if(projectiles.begin(), projectiles.end(), [&](Fireball* fb) {
+        fb->update(time, deltaTime);
+        if (fb->isOffScreen(screenWidth, screenHeight)) {
+            delete fb;
+            return true;
+        }
+
+        return false;
+    }), projectiles.end());
+}
+
+Direction Geezer::control(float time, float deltaTime) {
+    // Return NONE so that MovementAttackAnimated does not override
+    return NONE;
+}
+
+// handles state-specific firing logic
+void Geezer::fireAtTarget(float time) {
+    if (currentState == G_IDLE || currentState == G_FLEE) {
+        // idle and flee don't fire
+        return;
+    } else if (currentState == G_CHASE) {
+        // chase fire infrequently
+        if (time - lastAttackTime < 2.0f * attackInterval) {
+            return;
+        }
+    } else if (currentState == G_APPROACH || currentState == G_ATTACK) {
+        // pursue and attack fire as normal
+        if (time - lastAttackTime < attackInterval) {
+            return;
+        }
+    } else if (currentState == G_WITHDRAW) {
+        // withdraw fires extra frequently
+        if (time - lastAttackTime < attackInterval / 2.0f) {
+            return;
+        }
+    }
+    
+    // Get the target's location.
+    SDL_Point tgt = target->getPosition();
+
+    // Compute the desired firing angle (in radians)
+    float dx = static_cast<float>(tgt.x) - x;
+    float dy = static_cast<float>(tgt.y) - y;
+    float baseAngle = std::atan2(dy, dx);
+
+    // Introduce randomness: e.g. up to +/-5deg (approx)
+    float currentShotVariance = shotVariance;
+    if (currentState == G_WITHDRAW) {
+        // if it's withdrawing, it's panicked and is less accurate
+        currentShotVariance *= 2.0f;
+    }
+    std::normal_distribution<float> d{baseAngle, currentShotVariance};
+    float randomAngle = d(gen);
+
+    // Determine projectile velocity vector
+    float vx = std::cos(randomAngle) * projectileSpeed;
+    float vy = std::sin(randomAngle) * projectileSpeed;
+
+    // Create a new fireball.
+    Fireball* fb = new Fireball(
+        renderer, 
+        "assets/sprites/fireball.png", 
+        16, 16, 
+        x, y, 
+        vx, vy, 
+        this, 
+        10.0f
+    );
+    projectiles.push_back(fb);
+
+    lastAttackTime = time;
+}
+
+// handles state-specific speeds
+void Geezer::moveToDestination (float deltaTime) {
+    // don't move if idle or already attacking
+    if (currentState == G_IDLE || currentState == G_ATTACK) {
+        return;
+    }
+    
+    // displacement to target position
+    float dx = destinationX - x;
+    float dy = destinationY - y;
+    float mag = std::sqrt(dx*dx + dy*dy);
+
+    if (mag < movementSpeed*deltaTime || mag <= 0.0f) {
+        x = destinationX;
+        y = destinationY;
+        return;
+    }
+
+    dx /= mag;
+    dy /= mag;
+
+    x += dx * movementSpeed * deltaTime;
+    y += dy * movementSpeed * deltaTime;
+    return;
+
+    // in the future, we want to avoid getting too close to the player
+    // e.g., we're trying to move from one side of circle around player to
+    // another, and that line takes us too close to the player
+    // ideally, we would instead follow an arc around the player
+    // but this is kinda a distraction, so worry about it later
+}
+
+void Geezer::render(SDL_Renderer* renderer) {
+    // Render the geezer itself
+    // MovementAttackAnimated::render(renderer);
+    Entity::render(renderer);
+
+    // Render each active fireball.
+    for (auto fb : projectiles)
+        fb->render(renderer);
+}
+
+float Geezer::distanceToTarget() const {
+    SDL_Point pt = target->getPosition();
+    float dx = static_cast<float>(pt.x) - x;
+    float dy = static_cast<float>(pt.y) - y;
+    return std::sqrt(dx * dx + dy * dy);
+}
+
+void Geezer::setDestination (float time) {
+    // if we're supposed to stand still; don't bother
+    if (currentState == G_IDLE || currentState == G_ATTACK) {
+        return;
+    }
+
+    // get target position
+    SDL_Point pt = target->getPosition();
+    float ptx = static_cast<float>(pt.x);
+    float pty = static_cast<float>(pt.y);
+    
+    // displacement from target to geezer
+    float dx = x - ptx;
+    float dy = y - pty;
+
+    // angle from target to geezer
+    float baseAngle = std::atan2(dy, dx);
+
+    // Introduce randomness: e.g. up to +/-10deg (approx)
+    std::normal_distribution<float> d{baseAngle, posVariance};
+    float randomAngle = d(gen);
+
+    // set destination x and destination y
+    destinationX = ptx + std::cos(randomAngle) * idealAttackRange;
+    destinationY = pty + std::sin(randomAngle) * idealAttackRange;
+
+    // set last pathfind time
+    lastPathfindTime = time;
+}```
+
+`./src/game/geezer.h`:
+```c++
+#pragma once
+#include "movement_attack_animated.h"
+#include "fireball.h"
+#include "entity.h"
+#include <vector>
+#include <random>
+
+// Define states for the Geezer
+enum GeezerState {
+    G_IDLE,
+    G_CHASE,
+    G_APPROACH,
+    G_ATTACK,
+    G_WITHDRAW,
+    G_FLEE
+};
+
+class Geezer : public MovementAttackAnimated {
+public:
+    // The Geezer takes a pointer to its target (e.g., the player)
+    Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
+           int sprite_height, float x, float y, int** animations,
+           float animation_speed, float movement_speed, Entity* target);
+
+    ~Geezer();
+
+    // Override update to include state transitions and attack logic
+    void update(float time, float deltaTime) override;
+
+    // Implements the pure virtual control() method.
+    // For now, we return NONE since the state logic overrides movement.
+    Direction control(float time, float deltaTime) override;
+
+    // Render the enemy and its fireballs
+    void render(SDL_Renderer* renderer);
+
+private:
+    GeezerState currentState;
+    GeezerState prevState;
+    SDL_Renderer* renderer;
+    Entity* target; // for example, the player
+
+    // destination
+    float destinationX;
+    float destinationY;
+
+    // Timing for attacks
+    float attackInterval;           // seconds between fireballs
+    float withdrawAttackInterval;   // attack rate when withdrawing
+    float lastAttackTime;           // timestamp of the last fired projectile
+
+    float lastPathfindTime; // last time it pathfinded for strafing
+    float sightRange;       // dist > 128       -> idle (can't see)
+    float maxAttackRange;   // 80 < dist < 128  -> chase (way too far)
+    float idealOuter;       // 72 < dist < 128  -> pursue (a lil too far)
+    float idealAttackRange; // where the geezer wants to be
+    float idealInner;       // 56 < dist < 72   -> attack (just right)
+    float minAttackRange;   // 48 < dist < 56   -> withdraw (a lil too close)
+                            // dist < 48        -> flee (way too close)
+    
+    float projectileSpeed;  // speed of fireballs
+                            // should probably be in the fireball class, but eh
+    
+    std::random_device rd;
+    std::mt19937 gen;
+
+    // randomness introduced to fireball shots (std dev in radians)
+    // we use 0.045rad or ~1.3deg; means ~98% of shots will be in
+    // 5.2deg area centered on target
+    float shotVariance;
+
+    // randomness introduced to destination (std dev in radians)
+    // we use 0.35rad or ~4.9deg; means ~98% of shots will be in
+    // 19.6deg area around the most obvious position
+    // this gives the feeling of the geezer strafing around the
+    // player
+    float posVariance;
+
+    // List of active fireballs fired by this enemy
+    std::vector<Fireball*> projectiles;
+
+    // Fire a projectile at the target with some inaccuracy
+    void fireAtTarget(float time);
+
+    // Helper: compute Euclidean distance to target
+    float distanceToTarget() const;
+
+    // select a destination point close to target
+    void setDestination (float time);
+
+    // move to destination while maintaining arc
+    void moveToDestination (float deltaTime);
+};```
+
+`./src/game/movement_attack_animated.cpp`:
+```c++
+#include "movement_attack_animated.h"
+
+MovementAttackAnimated::MovementAttackAnimated(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations, float animation_speed, float movement_speed)
+    : Entity(renderer, sprite_path, sprite_width, sprite_height, x, y, animations),
+      animationSpeed(animation_speed),
+      movementSpeed(movement_speed),
+      direction(NONE),
+      isAttacking(false) {
+    setAnimation(0);
+    setStage(0);
+    lastAnimationTime = 0.0f;
+}
+
+void MovementAttackAnimated::update(float time, float deltaTime) {
+    Direction newDirection = control(time, deltaTime);
+
+    if (time - lastAnimationTime >= animationSpeed) {
+        lastAnimationTime = time;
+        if (advanceAnimation()) {
+            if (isAttacking) {
+                isAttacking = false;
+                setAnimation(0);
+                return;
+            }
+        }
+    }
+
+    if (newDirection != direction) {
+        setStage(0);
+        if (newDirection != NONE) {
+            setAnimation(1);
+
+            if (newDirection == LEFT || newDirection == UP_LEFT || newDirection == DOWN_LEFT) {
+                setFlipped(false);
+            } else if (newDirection == RIGHT || newDirection == UP_RIGHT || newDirection == DOWN_RIGHT) {
+                setFlipped(true);
+            }
+        } else {
+            setAnimation(0);
+        }
+    }
+
+    direction = newDirection;
+
+    switch (direction) {
+        case UP:    y -= movementSpeed * deltaTime; break;
+        case DOWN:  y += movementSpeed * deltaTime; break;
+        case LEFT:  x -= movementSpeed * deltaTime; break;
+        case RIGHT: x += movementSpeed * deltaTime; break;
+        case UP_LEFT:   x -= movementSpeed * deltaTime; y -= movementSpeed * deltaTime; break;
+        case UP_RIGHT:  x += movementSpeed * deltaTime; y -= movementSpeed * deltaTime; break;
+        case DOWN_LEFT: x -= movementSpeed * deltaTime; y += movementSpeed * deltaTime; break;
+        case DOWN_RIGHT: x += movementSpeed * deltaTime; y += movementSpeed * deltaTime; break;
+        default: break;
+    }
+
+    setPosition(static_cast<int>(x), static_cast<int>(y));
+}
+
+void MovementAttackAnimated::attack(float time) {
+    if (!isAttacking) {
+        isAttacking = true;
+        setAnimation(2); 
+        setStage(0);
+        lastAnimationTime = time;
+    }
+}
+
+void MovementAttackAnimated::setAnimationSpeed(float speed) {
+    animationSpeed = speed;
+}
+
+void MovementAttackAnimated::setMovementSpeed(float speed) {
+    movementSpeed = speed;
+}
+
+float MovementAttackAnimated::getAnimationSpeed() const {
+    return animationSpeed;
+}
+
+float MovementAttackAnimated::getMovementSpeed() const {
+    return movementSpeed;
+}
+```
+
+`./src/game/movement_attack_animated.h`:
+```c++
+#pragma once
+#include "entity.h"
+#include "../utils/direction.h"
+// animations[0] = idle, animations[i] = movement, animations[2] = attack
+class MovementAttackAnimated : public Entity {
+public:
+    MovementAttackAnimated(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations, float animation_speed, float movement_speed);
+
+    void update(float time, float deltaTime) override;
+    virtual Direction control(float time, float deltaTime) = 0;
+    void attack(float time);
+    void setAnimationSpeed(float speed);
+    void setMovementSpeed(float speed);
+    float getAnimationSpeed() const;
+    float getMovementSpeed() const;
+
+    float lastAnimationTime;
+    float animationSpeed;
+    float movementSpeed;
+    Direction direction;
+    bool isAttacking; // used to know not to change back to idle/movement animation during attack
+};```
+
+`./src/game/player.cpp`:
+```c++
+#include "player.h"
+#include  <SDL2/SDL.h>
+
+Player::Player(SDL_Renderer* renderer, const InputHandler* input_handler, float x, float y)
+    : MovementAttackAnimated(renderer, "assets/sprites/arcanist.png", 24, 24, x, y, nullptr, 0.1f, 200.0f),
+      input_handler(input_handler) {
+    int* idle_animation = new int[2]{ 0, -1 };
+    int* walk_animation = new int[7]{ 1, 2, 3, 4, 5, 6, -1 };
+    int* attack_animation = new int[3]{ 4, 5, -1 };
+    
+    int** animations = new int*[3];
+    animations[0] = idle_animation;
+    animations[1] = walk_animation;
+    animations[2] = attack_animation;
+
+    setAnimations(animations);
+}
+
+Direction Player::control(float time, float deltaTime) {
+    Direction direction = NONE;
+
+    if (input_handler->is_key_pressed(SDL_SCANCODE_UP)) {
+        if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
+            direction = UP_LEFT;
+        } else if (input_handler->is_key_pressed(SDL_SCANCODE_RIGHT)) {
+            direction = UP_RIGHT;
+        } else {
+            direction = UP;
+        }
+    } else if (input_handler->is_key_pressed(SDL_SCANCODE_DOWN)) {
+        if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
+            direction = DOWN_LEFT;
+        } else if (input_handler->is_key_pressed(SDL_SCANCODE_RIGHT)) {
+            direction = DOWN_RIGHT;
+        } else {
+            direction = DOWN;
+        }
+    } else if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
+        direction = LEFT;
+    } else if (input_handler->is_key_pressed(SDL_SCANCODE_RIGHT)) {
+        direction = RIGHT;
+    } 
+
+    if (input_handler->is_mouse_button_pressed(SDL_BUTTON_LEFT)) {
+        attack(time);
+    }
+
+    return direction;
+}```
+
+`./src/game/player.h`:
+```c++
+#pragma once
+#include <SDL2/SDL.h>
+#include "utils/spritesheet.h"
+#include "utils/input.h"
+#include "movement_attack_animated.h"
+
+class Player : public MovementAttackAnimated {
+public:
+    Player(SDL_Renderer* renderer, const InputHandler* input_handler, float x, float y);
+
+    Direction control(float time, float deltaTime) override;
+private:
+    const InputHandler* input_handler;
+};```
+
+`./src/main.cpp`:
+```c++
+#include <SDL2/SDL.h>
+#include "utils/spritesheet.h"
+#include "utils/audio.h"
+#include "utils/tilemap.h"
+#include "utils/input.h"
+#include <iostream>
+#include "game/player.h"
+#include "game/geezer.h"
+
+int main() {
+	// initialize SDL
+	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+		return 1;
+	}
+
+	// spawn window
+	SDL_Window* window = SDL_CreateWindow("Hello SDL2",
+										  SDL_WINDOWPOS_UNDEFINED,
+										  SDL_WINDOWPOS_UNDEFINED,
+										  640, 480,
+										  SDL_WINDOW_SHOWN);
+	if (!window) {
+		SDL_Quit();
+		return 1;
+	}
+
+	// initialize audio system
+	if (!AudioSystem::init()) {
+		SDL_DestroyWindow(window);
+		SDL_Quit();
+		return 1;
+	}
+
+	// load music
+	MusicTrack music("assets/audio/Patient Rituals.mp3");
+	music.play(-1);
+	music.setVolume(50);
+
+	// initialize renderer
+	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	if (!renderer) {
+		SDL_DestroyWindow(window);
+		SDL_Quit();
+		return 1;
+	}
+
+	// spritesheet, tilemap, inputhandler, player
+	Spritesheet sheet(renderer, "assets/tilesets/kenney_tiny-dungeon/tilemap_packed.png", 16, 16);
+	Tilemap map(&sheet, 24, 24, 10, 10, new int[2] {0, -1 } ,"assets/maps/test_map.txt");
+	InputHandler handler;
+
+	// create player
+	Player player (renderer, &handler, 100, 100);
+
+	// create geezer animations
+	int* idleAnimation = new int[2]{0, -1};
+	int** geezerAnimations = new int*[2];
+	geezerAnimations[0] = idleAnimation;
+	geezerAnimations[1] = nullptr;
+
+	// create geezer
+	Geezer geezer (
+		renderer,
+		"assets/sprites/geezer.png",
+		24, 24,
+		300, 150,
+		geezerAnimations,
+		0.1f,
+		200.0f,
+		&player
+	);
+
+	// loop upkeep stuff
+	bool quit = false;
+	SDL_Event event;
+	float lastTime = SDL_GetTicks () / 1000.0f;
+
+	SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
+	
+	// game loop
+	while (!quit) {
+		// handle events (e.g., movement)
+		while (SDL_PollEvent (&event)) {
+			switch (event.type) {
+				case SDL_QUIT:
+					quit = true;
+					break;
+				case SDL_KEYDOWN:
+					if (!event.key.repeat)
+						handler.handle_keydown(event.key.keysym.sym);
+					break;
+				case SDL_KEYUP:
+					handler.handle_keyup(event.key.keysym.sym);
+					break;
+				case SDL_MOUSEMOTION:
+					handler.handle_mousemotion(event.motion.x, event.motion.y);
+					break;
+				case SDL_MOUSEBUTTONDOWN:
+					handler.handle_mousebuttondown(event.button.button, event.button.x, event.button.y);
+					break;
+				case SDL_MOUSEBUTTONUP:
+					handler.handle_mousebuttonup(event.button.button, event.button.x, event.button.y);
+					break;
+			}
+		}
+
+		// time stuff
+		Uint32 currentTime = SDL_GetTicks ();
+		float time = currentTime / 1000.0f;
+		float deltaTime = time - lastTime;
+		lastTime = time;
+		
+		// update player
+		player.update (time, deltaTime);
+
+		// update geezer
+		geezer.update (time, deltaTime);
+
+		// render updates
+		SDL_RenderClear (renderer);
+		map.draw (renderer, 0, 0);
+		player.render (renderer);
+		geezer.render (renderer);
+		SDL_RenderPresent (renderer);
+
+		// 60(ish) fps
+		SDL_Delay (16);
+	}
+
+	SDL_DestroyWindow(window);
+	SDL_Quit();
+	return 0;
+}
+```
+
+`./src/utils/audio.cpp`:
+```c++
+#include "audio.h"
+
+bool AudioSystem::init(int frequency, Uint16 format, int channels, int chunksize) {
+    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
+        SDL_Log("Failed to initialize SDL audio: %s", SDL_GetError());
+        return false;
+    }
+
+    // initialize audio object
+    if (Mix_OpenAudio(frequency, format, channels, chunksize) < 0) {
+        SDL_Log("Failed to open SDL_mixer audio: %s", Mix_GetError());
+        return false;
+    }
+
+    Mix_AllocateChannels(32); // 32 channels is arbitrary, adjust as needed
+    
+    return true;
+}
+
+void AudioSystem::quit() {
+    Mix_CloseAudio();
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+}
+
+// load sound effect file from path
+SoundEffect::SoundEffect(const char * path) {
+    chunk_ = Mix_LoadWAV(path);
+    if (!chunk_) {
+        throw std::runtime_error(std::string("Failed to load sound effect: ") + Mix_GetError());
+    }
+}
+
+SoundEffect::~SoundEffect() {
+    if (chunk_) {
+        Mix_FreeChunk(chunk_);
+    }
+}
+
+void SoundEffect::play(int loops) const {
+    if (Mix_PlayChannel(-1, chunk_, loops) == -1) {
+        SDL_Log("Failed to play sound effect: %s", Mix_GetError());
+    }
+}
+
+void SoundEffect::setVolume(int volume) {
+    Mix_VolumeChunk(chunk_, volume);
+}
+
+MusicTrack::MusicTrack(const char * path) {
+    music_ = Mix_LoadMUS(path);
+    if (!music_) {
+        throw std::runtime_error(std::string("Failed to load music track: ") + Mix_GetError());
+    }
+}
+
+MusicTrack::~MusicTrack() {
+    if (music_) {
+        Mix_FreeMusic(music_);
+    }
+}
+
+void MusicTrack::play(int loops) const {
+    if (Mix_PlayMusic(music_, loops) == -1) {
+        SDL_Log("Failed to play music: %s", Mix_GetError());
+    }
+}
+
+void MusicTrack::setVolume(int volume) {
+    Mix_VolumeMusic(volume);
+}
+
+void MusicTrack::pause() {
+    Mix_PauseMusic();
+}
+
+void MusicTrack::resume() {
+    Mix_ResumeMusic();
+}
+
+void MusicTrack::stop() {
+    Mix_HaltMusic();
+}```
+
+`./src/utils/audio.h`:
+```c++
+#pragma once
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_mixer.h>
+#include <stdexcept>
+
+class AudioClip {
+public:
+    virtual ~AudioClip() = default;
+    virtual void play(int loops = 0) const = 0;
+    virtual void setVolume(int volume) = 0;
+};
+
+class SoundEffect : public AudioClip {
+public:
+    SoundEffect(const char * path);
+    ~SoundEffect();
+
+    void play(int loops = 0) const override;
+    void setVolume(int volume) override;
+
+private:
+    Mix_Chunk* chunk_;
+};
+
+class MusicTrack : public AudioClip {
+public:
+    MusicTrack(const char * path);
+    ~MusicTrack();
+
+    void play(int loops = -1) const override;
+    void setVolume(int volume) override;
+    static void pause();
+    static void resume();
+    static void stop();
+
+private:
+    Mix_Music* music_;
+};
+
+class AudioSystem {
+public:
+    static bool init(int frequency = 44100, Uint16 format = MIX_DEFAULT_FORMAT, int channels = 2, int chunksize = 2048);
+    static void quit();
+
+    AudioSystem() = delete;
+    AudioSystem(const AudioSystem&) = delete;
+    AudioSystem& operator=(const AudioSystem&) = delete;
+};
+```
+
+`./src/utils/direction.h`:
+```c++
+#pragma once
+
+enum Direction {
+    UP,
+    UP_LEFT,
+    UP_RIGHT,
+    DOWN,
+    DOWN_LEFT,
+    DOWN_RIGHT,
+    LEFT,
+    RIGHT,
+    NONE
+};
+```
+
+`./src/utils/input.cpp`:
+```c++
+#include "input.h"
+#include <SDL2/SDL.h>
+
+void InputHandler::handle_keydown(SDL_Keycode key) {
+    SDL_Scancode scancode = SDL_GetScancodeFromKey(key);
+    if (scancode < SDL_NUM_SCANCODES) {
+        key_states[scancode] = 1;
+    }
+}
+
+void InputHandler::handle_keyup(SDL_Keycode key) {
+    SDL_Scancode scancode = SDL_GetScancodeFromKey(key);
+    if (scancode < SDL_NUM_SCANCODES) {
+        key_states[scancode] = 0;
+    }
+}
+
+void InputHandler::handle_mousemotion(int x, int y) {
+    mouse_x = x;
+    mouse_y = y;
+}
+
+void InputHandler::handle_mousebuttondown(Uint8 button, int x, int y) {
+    if (button <= 4) {
+        mouse_button_states[button] = 1;
+    }
+    mouse_x = x;
+    mouse_y = y;
+}
+
+void InputHandler::handle_mousebuttonup(Uint8 button, int x, int y) {
+    if (button <= 4) {
+        mouse_button_states[button] = 0;
+    }
+    mouse_x = x;
+    mouse_y = y;
+}
+
+bool InputHandler::is_key_pressed(SDL_Scancode key) const {
+    if (key < SDL_NUM_SCANCODES) {
+        return key_states[key] == 1;
+    }
+    return false;
+}
+
+bool InputHandler::is_mouse_button_pressed(Uint8 button) const {
+    if (button <= 4) {
+        return mouse_button_states[button] == 1;
+    }
+    return false;
+}
+
+std::pair<int, int> InputHandler::get_mouse_position() const {
+    return std::make_pair(mouse_x, mouse_y);
+}
+```
+
+`./src/utils/input.h`:
+```c++
+#pragma once
+#include <SDL2/SDL.h>
+
+class InputHandler
+{
+public:
+    InputHandler() = default;
+    ~InputHandler() = default;
+
+    void handle_keydown(SDL_Keycode key);
+    void handle_keyup(SDL_Keycode key);
+    void handle_mousemotion(int x, int y);
+    void handle_mousebuttondown(Uint8 button, int x, int y);
+    void handle_mousebuttonup(Uint8 button, int x, int y);
+
+    bool is_key_pressed(SDL_Scancode key) const;
+    bool is_mouse_button_pressed(Uint8 button) const;
+    std::pair<int, int> get_mouse_position() const;
+
+private:
+    int mouse_x = 0, mouse_y = 0;
+    Uint8 key_states[SDL_NUM_SCANCODES] = {0};
+    Uint8 mouse_button_states[5] = {0};
+};```
+
+`./src/utils/spritesheet.cpp`:
+```c++
+#include "spritesheet.h"
+#include<stdexcept>
+#include <iostream>
+
+Spritesheet::Spritesheet(SDL_Renderer *renderer, const char *path, int width, int height) {
+	texture = IMG_LoadTexture(renderer, path);
+	if (!texture) {
+		std::cerr << "Failed to load texture: " << path << std::endl;
+		std::cerr << "SDL_image Error: " << IMG_GetError() << std::endl;
+
+		throw std::runtime_error("Failed to load texture");
+	}
+
+	SDL_QueryTexture(texture, NULL, NULL, &sheet_width, &sheet_height);
+
+	sprite_width = width;
+	sprite_height = height;
+
+	// how wide/tall is it in sprite terms
+	cols = sheet_width / sprite_width;
+	rows = sheet_height / sprite_height;
+
+	src_rect.x = 0;
+	src_rect.y = 0;
+	src_rect.w = sprite_width;
+	src_rect.h = sprite_height;
+}
+
+Spritesheet::~Spritesheet() {
+	SDL_DestroyTexture(texture);
+}
+
+void Spritesheet::select_sprite(int i) {
+	if (i < 0 || i >= rows * cols)
+		throw std::out_of_range("Sprite index out of range");
+
+	int x = i % cols;
+	int y = i / cols;
+
+	src_rect.x = x * sprite_width;
+	src_rect.y = y * sprite_height;
+}
+
+// draw sprite on provided renderer
+void Spritesheet::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, int dest_h, SDL_RendererFlip flip) {
+	SDL_Rect dest_rect;
+	// position to render at
+	dest_rect.x = dest_x;
+	dest_rect.y = dest_y;
+	// dimensions of sprite to draw
+	dest_rect.w = (dest_w == -1) ? sprite_width : dest_w;
+	dest_rect.h = (dest_h == -1) ? sprite_height : dest_h;
+
+	SDL_RenderCopyEx(renderer, texture, &src_rect, &dest_rect, 0, NULL, flip);
+}
+```
+
+`./src/utils/spritesheet.h`:
+```c++
+#pragma once
+#include<SDL2/SDL_image.h>
+#include<SDL2/SDL.h>
+
+class Spritesheet {
+public:
+	// width and height are width/height of sprites
+	Spritesheet(SDL_Renderer *renderer, char const *path, int width, int height);
+	~Spritesheet();
+
+	void select_sprite(int i);
+	// draw sprite sheet on provided renderer
+	void draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w = -1, int dest_h = -1, SDL_RendererFlip flip = SDL_FLIP_NONE);
+
+private:
+	SDL_Texture *texture;
+	SDL_Rect src_rect;
+
+	int sprite_width, sprite_height;
+	int sheet_width, sheet_height;
+	int rows, cols;
+};
+```
+
+`./src/utils/tilemap.cpp`:
+```c++
+#include "tilemap.h"
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+#include <SDL2/SDL.h>
+#include "spritesheet.h"
+#include <iostream>
+
+// creates a tilemap object with specified dimensions
+Tilemap::Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_width, int map_height, int *tiles_with_collider)
+    : sheet(sheet), tile_width(tile_width), tile_height(tile_height), map_width(map_width), map_height(map_height), 
+      tiles_with_collider(tiles_with_collider) {
+    tiles = new int[map_width * map_height];
+    std::fill(tiles, tiles + (map_width * map_height), -1);
+
+    collider = new long long[(map_width * map_height + 63) / 64];
+}
+
+// same as above but also loads map data from file
+Tilemap::Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_width, int map_height, int *tiles_with_collider, const char *path)
+    : Tilemap(sheet, tile_width, tile_height, map_width, map_height, tiles_with_collider) {
+    loadFromFile(path);
+}
+
+Tilemap::~Tilemap() {
+    delete[] tiles;
+    delete[] tiles_with_collider;
+    delete[] collider;
+}
+
+// change the data at the given coordinates
+void Tilemap::setTile(int x, int y, int tile_index) {
+    if (x >= 0 && x < map_width && y >= 0 && y < map_height) {
+        tiles[y * map_width + x] = tile_index;
+        
+        for (int i = 0; tiles_with_collider[i] != -1; ++i) {
+            if (tile_index == tiles_with_collider[i]) {
+                int index = y * map_width + x;
+                collider[index / 64] |= (1LL << (index % 64));
+            }
+        }
+    }
+}
+
+int Tilemap::getTile(int x, int y) const {
+    if (x >= 0 && x < map_width && y >= 0 && y < map_height) {
+        return tiles[y * map_width + x];
+    }
+    return -1;
+}
+
+// render the entire visible portion of the tilemap
+void Tilemap::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, int dest_h) const {
+    for (int y = 0; y < map_height; ++y) {
+        for (int x = 0; x < map_width; ++x) {
+            int tile_index = getTile(x, y);
+            if (tile_index != -1) {
+                int width = (dest_w == -1) ? tile_width : dest_w;
+                int height = (dest_h == -1) ? tile_height : dest_h;
+
+                int pos_x = dest_x + x * width;
+                int pos_y = dest_y + y * height;
+
+                sheet->select_sprite(tile_index);
+                sheet->draw(renderer, pos_x, pos_y, width, height);
+            }
+        }
+    }
+}
+
+// load map data from text file
+void Tilemap::loadFromFile(const char *path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open tilemap file.");
+    }
+
+    std::string line;
+    int y = 0;
+
+    while (std::getline(file, line) && y < map_height) {
+        std::stringstream ss(line);
+        int x = 0;
+        int tile_index;
+
+        while (ss >> tile_index && x < map_width) {
+            setTile(x, y, tile_index);
+            ++x;
+        }
+        ++y;
+    }
+
+    file.close();
+}
+
+void Tilemap::saveToFile(const char *path) const {
+    std::ofstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open tilemap file for saving.");
+    }
+
+    for (int y = 0; y < map_height; ++y) {
+        for (int x = 0; x < map_width; ++x) {
+            file << getTile(x, y);
+            if (x < map_width - 1) {
+                file << " ";
+            }
+        }
+        file << std::endl;
+    }
+
+    file.close();
+}
+Direction Tilemap::intersects_rect(float x, float y, float w, float h) const {
+    Direction dir = NONE;
+    int left = static_cast<int>(x - w / 2.0f);
+    int right = static_cast<int>(x + w / 2.0f);
+    int top = static_cast<int>(y - h / 2.0f);
+    int bottom = static_cast<int>(y + h / 2.0f);
+
+    for (int i = left; i <= right; ++i) {
+        for (int j = top; j <= bottom; ++j) {
+            if (i < 0 || j < 0 || i >= map_width || j >= map_height) {
+                continue;
+            }
+
+            int index = j * map_width + i;
+            long long byte = collider[index / 64];
+            long long bit = (byte >> (index % 64)) & 1;
+
+            if (bit == 1) {
+                float i_f = static_cast<float>(i) + 0.5f;
+                float j_f = static_cast<float>(j) + 0.5f;
+                float x_dif = std::abs(x - i_f);
+                float y_dif = std::abs(y - j_f);
+
+                if (x_dif > y_dif) {
+                    if (dir == UP) {
+                        dir = (x > i_f) ? UP_RIGHT : UP_LEFT;
+                        return dir;
+                    }
+                    if (dir == DOWN) {
+                        dir = (x > i_f) ? DOWN_RIGHT : DOWN_LEFT;
+                        return dir;
+                    }
+                    dir = (x > i_f) ? RIGHT : LEFT;
+                } else {
+                    if (dir == LEFT) {
+                        dir = (y > j_f) ? UP_LEFT : DOWN_LEFT;
+                        return dir;
+                    }
+                    if (dir == RIGHT) {
+                        dir = (y > j_f) ? UP_RIGHT : DOWN_RIGHT;
+                        return dir;
+                    }
+                    dir = (y > j_f) ? DOWN : UP;
+                }
+            }
+        }
+    }
+
+    return dir;
+}
+
+float Tilemap::raycast(float x, float y, float angle) const {
+    float raydir_x = std::cos(angle);
+    float raydir_y = std::sin(angle);
+
+    int map_x = static_cast<int>(x);
+    int map_y = static_cast<int>(y);
+
+    float delta_dist_x = (raydir_x == 0) ? 1e30f : std::abs(1.0f / raydir_x);
+    float delta_dist_y = (raydir_y == 0) ? 1e30f : std::abs(1.0f / raydir_y);
+    float side_dist_x, side_dist_y;
+    int step_x, step_y;
+    if (raydir_x < 0) {
+        step_x = -1;
+        side_dist_x = (x - static_cast<float>(map_x)) * delta_dist_x;
+    } else {
+        step_x = 1;
+        side_dist_x = (static_cast<float>(map_x + 1) - x) * delta_dist_x;
+    }
+    if (raydir_y < 0) {
+        step_y = -1;
+        side_dist_y = (y - static_cast<float>(map_y)) * delta_dist_y;
+    } else {
+        step_y = 1;
+        side_dist_y = (static_cast<float>(map_y + 1) - y) * delta_dist_y;
+    }
+    bool hit = false;
+    int side = 0; // 0: X-side, 1: Y-side
+    while (!hit) {
+        if (side_dist_x < side_dist_y) {
+            side_dist_x += delta_dist_x;
+            map_x += step_x;
+            side = 0;
+        } else {
+            side_dist_y += delta_dist_y;
+            map_y += step_y;
+            side = 1;
+        }
+
+        if (map_x < 0 || map_x >= map_width || map_y < 0 || map_y >= map_height) {
+            return -1.0f;
+        }
+
+        int index = map_y * map_width + map_x;
+        long long byte = collider[index / 64];
+        long long bit = (byte >> (index % 64)) & 1;
+
+        if (bit == 1) {
+            hit = true;
+        }
+    }
+
+    float perp_wall_dist;
+    if (side == 0) {
+        perp_wall_dist = (static_cast<float>(map_x) - x + (1.0f - static_cast<float>(step_x)) / 2.0f) / raydir_x;
+    } else {
+        perp_wall_dist = (static_cast<float>(map_y) - y + (1.0f - static_cast<float>(step_y)) / 2.0f) / raydir_y;
+    }
+    return perp_wall_dist;
+}```
+
+`./src/utils/tilemap.h`:
+```c++
+#pragma once
+#include <SDL2/SDL.h>
+#include "spritesheet.h"
+#include "direction.h"
+
+
+class Tilemap {
+public:
+    Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_width, int map_height, int* tiles_with_collider);
+    Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_width, int map_height, int* tiles_with_collider, const char *path);
+    ~Tilemap();
+
+    void setTile(int x, int y, int tile_index);
+    int getTile(int x, int y) const;
+
+    void draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w = -1, int dest_h = -1) const;
+    Direction intersects_rect(float x, float y, float w, float h) const;
+    float raycast(float x, float y, float angle) const;
+
+private:
+    Spritesheet *sheet;
+    int tile_width;
+    int tile_height;
+    int map_width;
+    int map_height;
+    int *tiles;
+    int *tiles_with_collider;
+    long long* collider;
+
+    void loadFromFile(const char *path);
+    void saveToFile(const char *path) const;
+};```
+

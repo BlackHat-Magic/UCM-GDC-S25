@@ -32,7 +32,8 @@ public:
     Direction control(float time, float deltaTime) override;
 
     // Render the enemy and its fireballs
-    void render(SDL_Renderer* renderer);
+    // I question how necessary this override is
+    void render(SDL_Renderer* renderer, float cameraX, float cameraY);
 
 private:
     GeezerState currentState;

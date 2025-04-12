@@ -50,19 +50,35 @@ int Tilemap::getTile(int x, int y) const {
 }
 
 // render the entire visible portion of the tilemap
-void Tilemap::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, int dest_h) const {
+void Tilemap::draw(SDL_Renderer *renderer, float cameraX, float cameraY, int dest_w, int dest_h) const {
+    // determine tile dimensions
+    int drawTileWidth = (dest_w == -1) ? tile_width : dest_w;
+    int drawTileHeight = (dest_h == -1) ? tile_height : dest_h;
+
+    // TODO: advanced culling
+
     for (int y = 0; y < map_height; ++y) {
         for (int x = 0; x < map_width; ++x) {
             int tile_index = getTile(x, y);
             if (tile_index != -1) {
-                int width = (dest_w == -1) ? tile_width : dest_w;
-                int height = (dest_h == -1) ? tile_height : dest_h;
+                // global position
+                int tileWorldX = x * tile_width;
+                int tileWorldY = y * tile_height;
 
-                int pos_x = dest_x + x * width;
-                int pos_y = dest_y + y * height;
+                // screenspace position
+                int screenX = tileWorldX - static_cast<int>(cameraX);
+                int screenY = tileWorldY - static_cast<int>(cameraY);
+
+                // basic culling
+                const int screenWidth = 640;
+                const int screenHeight = 480;
+                if (screenX + drawTileWidth < 0 || screenX > screenWidth || screenY + drawTileHeight < 0 || screenY > screenHeight) {
+                    // skip if off-screen
+                    continue;
+                }
 
                 sheet->select_sprite(tile_index);
-                sheet->draw(renderer, pos_x, pos_y, width, height);
+                sheet->draw(renderer, screenX, screenY, drawTileWidth, drawTileHeight);
             }
         }
     }

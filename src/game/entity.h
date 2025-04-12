@@ -8,7 +8,7 @@ public:
     virtual ~Entity();
 
     virtual void update(float time, float deltaTime) = 0;
-    void render(SDL_Renderer* renderer);
+    void render(SDL_Renderer* renderer, float cameraX, float cameraY);
 
     SDL_Point getPosition() const;
     void setAnimations(int** animations);
