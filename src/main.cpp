@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include "utils/spritesheet.h"
 #include "utils/audio.h"
+#include "utils/tilemap.h"
 
 int main() {
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -37,9 +38,13 @@ int main() {
 	}
 
 	Spritesheet sheet(renderer, "assets/sprites/arcanist.png", 24, 24);
+	Tilemap map(&sheet, 24, 24, 10, 10, "assets/maps/test_map.txt");
+
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 
 	for (int i = 0; i < 25; i++) {
+		map.draw(renderer, 0, 0, 24, 24);
+
 		sheet.select_sprite(i % 5);
 		sheet.draw(renderer, 100, 100, 96, 96);
 		SDL_RenderPresent(renderer);
