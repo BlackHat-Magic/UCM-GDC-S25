@@ -14,44 +14,38 @@ MovementAttackAnimated::MovementAttackAnimated(SDL_Renderer* renderer, const cha
 void MovementAttackAnimated::update(float time, float deltaTime) {
     MovementDirection newDirection = control(time, deltaTime);
 
-    if (isAttacking) {
-        if (time - lastAnimationTime >= animationSpeed) {
-            lastAnimationTime = time;
-            if (advanceAnimation()) {
-                isAttacking = false;
+    if (time - lastAnimationTime >= animationSpeed) {
+        lastAnimationTime = time;
+        if (advanceAnimation()) {
+            isAttacking = false;
+            if (isAttacking) {
                 setAnimation(0);
-
+                return;
             }
         }
+    }
 
-        control(time, deltaTime);
-
-        return;
+    if (newDirection != direction) {
+        setStage(0);
+        if (newDirection != NONE) {
+            setAnimation(1);
+        } else {
+            setAnimation(0);
+        }
     }
 
     direction = newDirection;
 
-    if (direction != NONE) {
-        setAnimation(1);
-
-        switch (direction) {
-            case UP:    y -= movementSpeed * deltaTime; break;
-            case DOWN:  y += movementSpeed * deltaTime; break;
-            case LEFT:  x -= movementSpeed * deltaTime; break;
-            case RIGHT: x += movementSpeed * deltaTime; break;
-            case UP_LEFT:   x -= movementSpeed * deltaTime; y -= movementSpeed * deltaTime; break;
-            case UP_RIGHT:  x += movementSpeed * deltaTime; y -= movementSpeed * deltaTime; break;
-            case DOWN_LEFT: x -= movementSpeed * deltaTime; y += movementSpeed * deltaTime; break;
-            case DOWN_RIGHT: x += movementSpeed * deltaTime; y += movementSpeed * deltaTime; break;
-            default: break;
-        }
-    } else {
-        setAnimation(0);
-    }
-
-    if (time - lastAnimationTime >= animationSpeed) {
-        lastAnimationTime = time;
-        advanceAnimation();
+    switch (direction) {
+        case UP:    y -= movementSpeed * deltaTime; break;
+        case DOWN:  y += movementSpeed * deltaTime; break;
+        case LEFT:  x -= movementSpeed * deltaTime; break;
+        case RIGHT: x += movementSpeed * deltaTime; break;
+        case UP_LEFT:   x -= movementSpeed * deltaTime; y -= movementSpeed * deltaTime; break;
+        case UP_RIGHT:  x += movementSpeed * deltaTime; y -= movementSpeed * deltaTime; break;
+        case DOWN_LEFT: x -= movementSpeed * deltaTime; y += movementSpeed * deltaTime; break;
+        case DOWN_RIGHT: x += movementSpeed * deltaTime; y += movementSpeed * deltaTime; break;
+        default: break;
     }
 
     setPosition(static_cast<int>(x), static_cast<int>(y));

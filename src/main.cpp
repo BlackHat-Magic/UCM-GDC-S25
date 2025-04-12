@@ -50,22 +50,32 @@ int main() {
 
 	bool quit = false;
 	SDL_Event event;
-	Uint32 lastTime = SDL_GetTicks ();
+	float lastTime = SDL_GetTicks () / 1000.0f;
+
+	SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
 	while (!quit) {
 		while (SDL_PollEvent (&event)) {
-			if (event.type == SDL_QUIT) {
-				quit = true;
-			} else if (event.type == SDL_KEYDOWN) {
-				handler.handle_keydown(event.key.keysym.sym);
-			} else if (event.type == SDL_KEYUP) {
-				handler.handle_keyup(event.key.keysym.sym);
-			} else if (event.type == SDL_MOUSEMOTION) {
-				handler.handle_mousemotion(event.motion.x, event.motion.y);
-			} else if (event.type == SDL_MOUSEBUTTONDOWN) {
-				handler.handle_mousebuttondown(event.button.button, event.button.x, event.button.y);
-			} else if (event.type == SDL_MOUSEBUTTONUP) {
-				handler.handle_mousebuttonup(event.button.button, event.button.x, event.button.y);
+			switch (event.type) {
+				case SDL_QUIT:
+					quit = true;
+					break;
+				case SDL_KEYDOWN:
+					if (!event.key.repeat)
+						handler.handle_keydown(event.key.keysym.sym);
+					break;
+				case SDL_KEYUP:
+					handler.handle_keyup(event.key.keysym.sym);
+					break;
+				case SDL_MOUSEMOTION:
+					handler.handle_mousemotion(event.motion.x, event.motion.y);
+					break;
+				case SDL_MOUSEBUTTONDOWN:
+					handler.handle_mousebuttondown(event.button.button, event.button.x, event.button.y);
+					break;
+				case SDL_MOUSEBUTTONUP:
+					handler.handle_mousebuttonup(event.button.button, event.button.x, event.button.y);
+					break;
 			}
 		}
 
@@ -76,7 +86,6 @@ int main() {
 		
 		player.update (time, deltaTime);
 
-		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 		SDL_RenderClear (renderer);
 		player.render (renderer);
 		SDL_RenderPresent (renderer);
