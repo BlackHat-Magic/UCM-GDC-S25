@@ -4,13 +4,25 @@ Presently-unnamed game for UC Merced's Game Development Club Spring 2025 Game Ja
 
 ## To-Do:
 
-- [x] Character Class
+- [x] ~~Character Class~~
     - Luke
-- [ ] Enemy Class
-- [ ] Boss Class (Maybe inherits from enemy)
+- [ ] Enem Implementations
+    - [ ] Geezer
+        - Luke
+        - Presently fireballs are borked
+        - Pathfinding is good
+    - [ ] unnamed melee guy
+    - [ ] Boss (stretch goal)
+- [ ] Collisions
+    - Sofia
+- [ ] level Generation
+- [ ] Title screen (stretch goal)
+- [ ] camera scrolling
+- [ ] level destruction
+- [ ] map class
 - [x] Maybe make generic entity class idk
     - Sofia
-- [X] ~~Aduio handler~~
+- [X] ~~Audio handler~~
     - Sofia
 - [X] ~~Sprite Sheet Handler~~
     - Sofia
