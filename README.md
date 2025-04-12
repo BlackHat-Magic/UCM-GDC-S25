@@ -18,7 +18,14 @@ Presently-unnamed game for UC Merced's Game Development Club Spring 2025 Game Ja
 - [ ] level Generation
 - [ ] Title screen (stretch goal)
 - [ ] camera scrolling
+    - [ ] horizontal scroll
+    - [ ] "track" movement for nonlinear levels (e.g., sideways, diagonal) (stretch goal)
+    - [ ] backward movement for extra nonlinear levels (stretch goal)
+    - [ ] not fixed to player (stretch goal)
 - [ ] level destruction
+    - [ ] linear destruction
+    - [ ] support for nonlinear levels (stretch goal)
+    - [ ] support for backward movement (stretch goal)
 - [ ] map class
 - [x] Maybe make generic entity class idk
     - Sofia
