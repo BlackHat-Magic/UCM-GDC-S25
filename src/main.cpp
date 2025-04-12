@@ -2,7 +2,7 @@
 #include "utils/spritesheet.h"
 #include "utils/audio.h"
 #include "utils/tilemap.h"
-#include "utils/character.h"
+#include "character.h"
 
 int main() {
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
