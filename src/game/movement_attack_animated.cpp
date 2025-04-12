@@ -12,7 +12,7 @@ MovementAttackAnimated::MovementAttackAnimated(SDL_Renderer* renderer, const cha
 }
 
 void MovementAttackAnimated::update(float time, float deltaTime) {
-    MovementDirection newDirection = control(time, deltaTime);
+    Direction newDirection = control(time, deltaTime);
 
     if (time - lastAnimationTime >= animationSpeed) {
         lastAnimationTime = time;

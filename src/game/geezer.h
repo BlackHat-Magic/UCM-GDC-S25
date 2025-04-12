@@ -29,7 +29,7 @@ public:
 
     // Implements the pure virtual control() method.
     // For now, we return NONE since the state logic overrides movement.
-    MovementDirection control(float time, float deltaTime) override;
+    Direction control(float time, float deltaTime) override;
 
     // Render the enemy and its fireballs
     void render(SDL_Renderer* renderer);

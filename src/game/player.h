@@ -8,7 +8,7 @@ class Player : public MovementAttackAnimated {
 public:
     Player(SDL_Renderer* renderer, const InputHandler* input_handler, float x, float y);
 
-    MovementDirection control(float time, float deltaTime) override;
+    Direction control(float time, float deltaTime) override;
 private:
     const InputHandler* input_handler;
 };

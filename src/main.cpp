@@ -45,8 +45,8 @@ int main() {
 	}
 
 	// spritesheet, tilemap, inputhandler, player
-	Spritesheet sheet(renderer, "assets/sprites/arcanist.png", 24, 24);
-	Tilemap map(&sheet, 24, 24, 10, 10, "assets/maps/test_map.txt");
+	Spritesheet sheet(renderer, "assets/tilesets/kenney_tiny-dungeon/tilemap_packed.png", 16, 16);
+	Tilemap map(&sheet, 24, 24, 10, 10, new int[2] {0, -1 } ,"assets/maps/test_map.txt");
 	InputHandler handler;
 
 	// create player
@@ -118,6 +118,7 @@ int main() {
 
 		// render updates
 		SDL_RenderClear (renderer);
+		map.draw (renderer, 0, 0);
 		player.render (renderer);
 		geezer.render (renderer);
 		SDL_RenderPresent (renderer);
