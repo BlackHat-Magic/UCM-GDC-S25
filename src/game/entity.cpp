@@ -37,7 +37,7 @@ void Entity::render(SDL_Renderer* renderer) {
 
     spritesheet->select_sprite(sprite_index);
     SDL_RendererFlip flip = flipped ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-    spritesheet->draw(renderer, static_cast<int>(x), static_cast<int>(y), spriteWidth * 5, spriteHeight * 5, flip);
+    spritesheet->draw(renderer, static_cast<int>(x), static_cast<int>(y), spriteWidth, spriteHeight, flip);
 }
 
 SDL_Point Entity::getPosition() const {
