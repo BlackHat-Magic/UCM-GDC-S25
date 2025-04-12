@@ -9,7 +9,7 @@ public:
     Fireball(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
              int sprite_height, float x, float y, float vx, float vy,
              Entity* owner, float damage);
-    ~Fireball();
+    // ~Fireball();
 
     // For the projectile, update its position using its velocity.
     void update(float time, float deltaTime) override;

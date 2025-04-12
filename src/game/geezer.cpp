@@ -1,6 +1,7 @@
 #include "geezer.h"
 #include <cmath>
 #include <cstdlib>
+#include <algorithm>
 
 Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
                int sprite_height, float x, float y, int** animations,
@@ -69,11 +70,18 @@ void Geezer::update(float time, float deltaTime) {
     // Update animation (provided by MovementAttackAnimated)
     advanceAnimation();
 
-    // Update projectiles.
-    for (auto it = projectiles.begin(); it != projectiles.end();) {
-        (*it)->update(time, deltaTime);
-        ++it;
-    }
+    // update and clean up projectiles
+    const int screenWidth = 640;
+    const int screenHeight = 480;
+    projectiles.erase(std::remove_if(projectiles.begin(), projectiles.end(), [&](Fireball* fb) {
+        fb->update(time, deltaTime);
+        if (fb->isOffScreen(screenWidth, screenHeight)) {
+            delete fb;
+            return true;
+        }
+
+        return false;
+    }), projectiles.end());
 }
 
 MovementDirection Geezer::control(float time, float deltaTime) {
@@ -172,7 +180,8 @@ void Geezer::moveToDestination (float deltaTime) {
 
 void Geezer::render(SDL_Renderer* renderer) {
     // Render the geezer itself
-    MovementAttackAnimated::render(renderer);
+    // MovementAttackAnimated::render(renderer);
+    Entity::render(renderer);
 
     // Render each active fireball.
     for (auto fb : projectiles)
