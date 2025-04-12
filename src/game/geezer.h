@@ -22,6 +22,8 @@ public:
            int sprite_height, float x, float y, int** animations,
            float animation_speed, float movement_speed, Entity* target);
 
+    ~Geezer();
+
     // Override update to include state transitions and attack logic
     void update(float time, float deltaTime) override;
 

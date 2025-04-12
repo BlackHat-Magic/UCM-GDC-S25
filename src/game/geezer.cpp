@@ -32,6 +32,12 @@ Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width
     setStage(0);
 }
 
+Geezer::~Geezer() {
+    for (Fireball* fb : projectiles) {
+        delete fb;
+    }
+}
+
 void Geezer::update(float time, float deltaTime) {
     // Decide state based on distance to target
     float dist = distanceToTarget();
