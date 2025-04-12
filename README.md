@@ -17,5 +17,5 @@ Presently-unnamed game for UC Merced's Game Development Club Spring 2025 Game Ja
     - Sofia
     - Allegedly needs to be more understandable but who needs to understand it?
     - Above written by a backend dev
-- [x] Input Handler
+- [x] ~~Input Handler~~
     - Sofia
