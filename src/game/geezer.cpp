@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
+#include <iostream>
 
 Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
                int sprite_height, float x, float y, int** animations,
@@ -17,11 +18,11 @@ Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width
         lastAttackTime(0.0f),
         lastPathfindTime(0.0f),
         sightRange(256.0f),
-        maxAttackRange(80.0f),
-        idealOuter(72.0f),
-        idealAttackRange(64.0f),
-        idealInner(56.0f),
-        minAttackRange(48.0f),
+        maxAttackRange(128.0f),
+        idealOuter(112.0f),
+        idealAttackRange(96.0f),
+        idealInner(80.0f),
+        minAttackRange(64.0f),
         projectileSpeed(300.0f),
         shotVariance(0.045f),
         posVariance(0.35f),
@@ -59,6 +60,17 @@ void Geezer::update(float time, float deltaTime) {
     } else if (time - lastPathfindTime > 2.0f) {
         // new position if we haven't moved in >2sec
         setDestination(time);
+    }
+    
+    // check AGAIN if the player is too far
+    SDL_Point pt = target->getPosition();
+    float targetX = static_cast<float>(pt.x);
+    float targetY = static_cast<float>(pt.y);
+    float destdx = targetX - destinationX;
+    float destdy = targetY - destinationY;
+    float destDistToTarget = std::sqrt(destdx*destdx + destdy*destdy);
+    if (destDistToTarget > maxAttackRange || destDistToTarget < minAttackRange) {
+        setDestination (time);
     }
 
     // if we're in a moving state, move toward destination
@@ -159,13 +171,15 @@ void Geezer::moveToDestination (float deltaTime) {
     float dx = destinationX - x;
     float dy = destinationY - y;
     float mag = std::sqrt(dx*dx + dy*dy);
-    if (mag <= 0.0f) {
-        // already at destination
+
+    if (mag < movementSpeed*deltaTime || mag <= 0.0f) {
+        x = destinationX;
+        y = destinationY;
         return;
-    } else {
-        dx /= mag;
-        dy /= mag;
     }
+
+    dx /= mag;
+    dy /= mag;
 
     x += dx * movementSpeed * deltaTime;
     y += dy * movementSpeed * deltaTime;
@@ -196,6 +210,12 @@ float Geezer::distanceToTarget() const {
 }
 
 void Geezer::setDestination (float time) {
+    // if we're supposed to stand still; don't bother
+    if (currentState == G_IDLE || currentState == G_ATTACK) {
+        return;
+    }
+
+    // get target position
     SDL_Point pt = target->getPosition();
     float ptx = static_cast<float>(pt.x);
     float pty = static_cast<float>(pt.y);
