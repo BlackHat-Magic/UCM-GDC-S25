@@ -1,3 +1,4 @@
+#pragma once
 #include "entity.h"
 
 enum MovementDirection {
@@ -27,8 +28,9 @@ public:
 
 private:
     float lastAnimationTime;
-    float animationSpeed;
-    float movementSpeed;
     MovementDirection direction;
     bool isAttacking; // used to know not to change back to idle/movement animation during attack
+protected:
+    float animationSpeed;
+    float movementSpeed;
 };

@@ -1,10 +1,15 @@
 #include "spritesheet.h"
 #include<stdexcept>
+#include <iostream>
 
 Spritesheet::Spritesheet(SDL_Renderer *renderer, const char *path, int width, int height) {
 	texture = IMG_LoadTexture(renderer, path);
-	if (!texture)
+	if (!texture) {
+		std::cerr << "Failed to load texture: " << path << std::endl;
+		std::cerr << "SDL_image Error: " << IMG_GetError() << std::endl;
+
 		throw std::runtime_error("Failed to load texture");
+	}
 
 	SDL_QueryTexture(texture, NULL, NULL, &sheet_width, &sheet_height);
 
