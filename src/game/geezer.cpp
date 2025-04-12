@@ -66,6 +66,11 @@ void Geezer::update(float time, float deltaTime) {
     // because for some god-damned reason it sometimes just doesn't
     // set a new destination
     // but for *some reason*, this is reliable
+
+    // wait I understand now. It's possible for the player to move
+    // to a new position that necessitates a new destination
+    // without the Geezer changing state in under 2 seconds
+    // which results in the Geezer having an outdated destination
     SDL_Point pt = target->getPosition();
     float targetX = static_cast<float>(pt.x);
     float targetY = static_cast<float>(pt.y);
