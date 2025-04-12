@@ -30,12 +30,11 @@ int main() {
 		SDL_Quit();
 		return 1;
 	}
-	// music
-	MusicTrack test_song("assets/audio/test.ogg");
-	test_song.play();
-	// sound effect
-	SoundEffect test_sound("assets/audio/test.wav");
-	test_sound.play(-1); // loop indefinitely (testing loops)
+
+	// load music
+	MusicTrack music("assets/audio/Patient Rituals.mp3");
+	music.play(-1);
+	music.setVolume(50);
 
 	// initialize renderer
 	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
