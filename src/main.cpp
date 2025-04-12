@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include "utils/spritesheet.h"
+#include "utils/audio.h"
 
 int main() {
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -15,6 +16,18 @@ int main() {
 		SDL_Quit();
 		return 1;
 	}
+
+	if (!AudioSystem::init()) {
+		SDL_DestroyWindow(window);
+		SDL_Quit();
+		return 1;
+	}
+
+	MusicTrack test_song("assets/audio/test.ogg");
+	test_song.play();
+
+	SoundEffect test_sound("assets/audio/test.wav");
+	test_sound.play(-1); // loop indefinitely (testing loops)
 
 	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 	if (!renderer) {
@@ -40,7 +53,7 @@ int main() {
 	sheet.draw(renderer, 100, 100);
 	SDL_RenderPresent(renderer);
 
-	SDL_Delay(300);
+	SDL_Delay(10000);
 
 	SDL_DestroyWindow(window);
 	SDL_Quit();
