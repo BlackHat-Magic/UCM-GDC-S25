@@ -5,7 +5,7 @@
 class Entity {
 public:
     Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations);
-    ~Entity();
+    virtual ~Entity();
 
     virtual void update(float time, float deltaTime) = 0;
     void render(SDL_Renderer* renderer);

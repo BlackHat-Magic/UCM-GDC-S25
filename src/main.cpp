@@ -127,9 +127,6 @@ int main() {
 		SDL_Delay (16);
 	}
 
-	delete[] idleAnimation;
-	delete[] geezerAnimations;
-
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 	return 0;
