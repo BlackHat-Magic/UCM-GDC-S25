@@ -3,53 +3,37 @@
 
 const int PLAYER_SPEED = 5;
 
-Player::Player ( SDL_Renderer* renderer, const char* spritePath,
-    int spriteWidth, int spriteHeight, int x, int y)
-    : velocityX (0), velocityY (0) {
-    // create spritesheet
-    spritesheet = new Spritesheet (renderer, spritePath, spriteWidth, spriteHeight);
+Player::Player(SDL_Renderer* renderer, const InputHandler* input_handler, float x, float y)
+    : MovementAttackAnimated(renderer, "assets/sprites/arcanist.png", 24, 24, x, y, nullptr, 0.1f, PLAYER_SPEED),
+      input_handler(input_handler) {
+    int* idle_animation = new int[2]{ 0, -1 };
+    int* walk_animation = new int[7]{ 1, 2, 3, 4, 5, 6, -1 };
+    int* attack_animation = new int[3]{ 4, 5, -1 };
+    
+    int** animations = new int*[3];
+    animations[0] = idle_animation;
+    animations[1] = walk_animation;
+    animations[2] = attack_animation;
 
-    dstRect.x = x;
-    dstRect.y = y;
-    dstRect.w = spriteWidth;
-    dstRect.h = spriteHeight;
+    setAnimations(animations);
 }
 
-Player::~Player () {
-    delete spritesheet;
-}
+MovementDirection Player::control(float time, float deltaTime) {
+    MovementDirection direction = NONE;
 
-void Player::update (float deltaTime, const InputHandler& inputHandler) {
-    dstRect.x += static_cast <int> (velocityX * deltaTime);
-    dstRect.y += static_cast <int> (velocityY * deltaTime);
-
-    if (inputHandler.is_key_pressed(SDL_SCANCODE_LEFT)) {
-        velocityX = -1 * PLAYER_SPEED;
-      }
-    if (inputHandler.is_key_pressed(SDL_SCANCODE_RIGHT)) {
-        velocityX = PLAYER_SPEED;
-    }
-    if (inputHandler.is_key_pressed(SDL_SCANCODE_UP)) {
-        velocityY = -1 * PLAYER_SPEED;
-    }
-    if (inputHandler.is_key_pressed(SDL_SCANCODE_DOWN)) {
-        velocityY = PLAYER_SPEED;
+    if (input_handler->is_key_pressed(SDL_SCANCODE_UP)) {
+        direction = UP;
+    } else if (input_handler->is_key_pressed(SDL_SCANCODE_DOWN)) {
+        direction = DOWN;
+    } else if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
+        direction = LEFT;
+    } else if (input_handler->is_key_pressed(SDL_SCANCODE_RIGHT)) {
+        direction = RIGHT;
     }
 
-    dstRect.x += static_cast<int>(velocityX * deltaTime);
-    dstRect.y += static_cast<int>(velocityY * deltaTime);
-
-    if (velocityX != 0 || velocityY != 0) {
-        static int frame = 0;
-        frame = (frame + 1) % 4;
-        spritesheet->select_sprite (frame);
+    if (input_handler->is_mouse_button_pressed(SDL_BUTTON_LEFT)) {
+        attack(time);
     }
-}
 
-void Player::render (SDL_Renderer* renderer) {
-    spritesheet->draw (renderer, dstRect.x, dstRect.y, dstRect.w, dstRect.h);
-}
-
-SDL_Point Player::getPosition () const {
-    return {dstRect.x, dstRect.y};
+    return direction;
 }

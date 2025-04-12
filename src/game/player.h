@@ -2,21 +2,13 @@
 #include <SDL2/SDL.h>
 #include "utils/spritesheet.h"
 #include "utils/input.h"
+#include "movement_attack_animated.h"
 
-class Player {
+class Player : public MovementAttackAnimated {
 public:
-    Player (SDL_Renderer* renderer, const char* spritePath, int spriteWidth, int spriteHeight, int x, int y);
-    ~Player ();
+    Player(SDL_Renderer* renderer, const InputHandler* input_handler, float x, float y);
 
-    void update (float deltaTime, const InputHandler& inputHandler);
-
-    void render (SDL_Renderer* renderer);
-
-    SDL_Point getPosition () const;
-
+    MovementDirection control(float time, float deltaTime) override;
 private:
-    Spritesheet* spritesheet;
-    SDL_Rect dstRect;
-    int velocityX;
-    int velocityY;
+    const InputHandler* input_handler;
 };

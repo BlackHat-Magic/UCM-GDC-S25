@@ -44,7 +44,7 @@ int main() {
 	Spritesheet sheet(renderer, "assets/sprites/arcanist.png", 24, 24);
 	Tilemap map(&sheet, 24, 24, 10, 10, "assets/maps/test_map.txt");
 	InputHandler handler;
-	Player player (renderer, "assets/sprites/arcanist.png", 24, 24, 100, 100);
+	Player player (renderer, &handler, 100, 100);
 
 	// Tilemap map(&sheet, 24, 24, 10, 10, "assets/maps/test_map.txt");
 
@@ -69,12 +69,12 @@ int main() {
 			}
 		}
 
-		// delta time
 		Uint32 currentTime = SDL_GetTicks ();
-		float deltaTime = (currentTime - lastTime) / 1000.0f;
-		lastTime = currentTime;
+		float time = currentTime / 1000.0f;
+		float deltaTime = time - lastTime;
+		lastTime = time;
 		
-		player.update (deltaTime, handler);
+		player.update (time, deltaTime);
 
 		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 		SDL_RenderClear (renderer);
