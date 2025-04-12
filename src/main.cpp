@@ -4,10 +4,9 @@
 #include "utils/tilemap.h"
 #include "utils/input.h"
 #include <iostream>
+#include "character.h"
 
 int main() {
-	bool quit = false;
-	SDL_Event event;
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		return 1;
@@ -45,40 +44,35 @@ int main() {
 	Spritesheet sheet(renderer, "assets/sprites/arcanist.png", 24, 24);
 	Tilemap map(&sheet, 24, 24, 10, 10, "assets/maps/test_map.txt");
 	InputHandler handler;
+	Character character (renderer, "assets/sprites/arcanist.png", 24, 24, 100, 100);
 
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	// Tilemap map(&sheet, 24, 24, 10, 10, "assets/maps/test_map.txt");
+
+	bool quit = false;
+	SDL_Event event;
+	Uint32 lastTime = SDL_GetTicks ();
 
 	while (!quit) {
-		SDL_WaitEvent(&event);
-
-		switch (event.type) {
-		case SDL_QUIT:
-			quit = true;
-			break;
-		case SDL_KEYDOWN:
-			handler.handle_keydown(event.key.keysym.sym);
-			break;
-		case SDL_KEYUP:
-			handler.handle_keyup(event.key.keysym.sym);
-			break;
-		case SDL_MOUSEMOTION:
-			handler.handle_mousemotion(event.motion.x, event.motion.y);
-			break;
-		case SDL_MOUSEBUTTONDOWN:
-			handler.handle_mousebuttondown(event.button.button, event.button.x, event.button.y);
-			break;
-		case SDL_MOUSEBUTTONUP:
-			handler.handle_mousebuttonup(event.button.button, event.button.x, event.button.y);
-			break;
+		while (SDL_PollEvent (&event)) {
+			if (event.type == SDL_QUIT) {
+				quit = true;
+			}
+			character.handleEvent (event);
 		}
 
-		map.draw(renderer, 0, 0, 24, 24);
+		// delta time
+		Uint32 currentTime = SDL_GetTicks ();
+		float deltaTime = (currentTime - lastTime) / 1000.0f;
+		lastTime = currentTime;
+		
+		character.update (deltaTime);
 
-		sheet.select_sprite(0);
-		sheet.draw(renderer, 100, 100, 96, 96);
-		SDL_RenderPresent(renderer);
+		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
+		SDL_RenderClear (renderer);
+		character.render (renderer);
+		SDL_RenderPresent (renderer);
 
-		SDL_RenderClear(renderer);
+		SDL_Delay (16);
 	}
 
 	SDL_DestroyWindow(window);
