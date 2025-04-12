@@ -11,7 +11,7 @@ Presently-unnamed game for UC Merced's Game Development Club Spring 2025 Game Ja
         - Luke
     - [ ] unnamed melee guy
     - [ ] Boss (stretch goal)
-- [ ] Collisions
+- [x] ~~Collisions~~
     - Sofia
 - [ ] level Generation
 - [ ] Title screen (stretch goal)
@@ -25,7 +25,7 @@ Presently-unnamed game for UC Merced's Game Development Club Spring 2025 Game Ja
     - [ ] support for nonlinear levels (stretch goal)
     - [ ] support for backward movement (stretch goal)
 - [ ] map class
-- [x] Maybe make generic entity class idk
+- [x] ~~Maybe make generic entity class idk~~
     - Sofia
 - [X] ~~Audio handler~~
     - Sofia

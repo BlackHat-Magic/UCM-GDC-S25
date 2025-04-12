@@ -110,7 +110,7 @@ void Geezer::update(float time, float deltaTime) {
     }), projectiles.end());
 }
 
-MovementDirection Geezer::control(float time, float deltaTime) {
+Direction Geezer::control(float time, float deltaTime) {
     // Return NONE so that MovementAttackAnimated does not override
     return NONE;
 }

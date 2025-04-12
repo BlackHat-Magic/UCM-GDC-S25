@@ -16,8 +16,8 @@ Player::Player(SDL_Renderer* renderer, const InputHandler* input_handler, float 
     setAnimations(animations);
 }
 
-MovementDirection Player::control(float time, float deltaTime) {
-    MovementDirection direction = NONE;
+Direction Player::control(float time, float deltaTime) {
+    Direction direction = NONE;
 
     if (input_handler->is_key_pressed(SDL_SCANCODE_UP)) {
         if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
