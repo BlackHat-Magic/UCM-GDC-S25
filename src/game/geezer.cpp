@@ -63,6 +63,9 @@ void Geezer::update(float time, float deltaTime) {
     }
     
     // check AGAIN if the player is too far
+    // because for some god-damned reason it sometimes just doesn't
+    // set a new destination
+    // but for *some reason*, this is reliable
     SDL_Point pt = target->getPosition();
     float targetX = static_cast<float>(pt.x);
     float targetY = static_cast<float>(pt.y);
