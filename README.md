@@ -4,11 +4,12 @@ Presently-unnamed game for UC Merced's Game Development Club Spring 2025 Game Ja
 
 ## To-Do:
 
-- [ ] Character Class
+- [x] Character Class
     - Luke
 - [ ] Enemy Class
 - [ ] Boss Class (Maybe inherits from enemy)
-- [ ] Maybe make generic entity class idk
+- [x] Maybe make generic entity class idk
+    - Sofia
 - [X] ~~Aduio handler~~
     - Sofia
 - [X] ~~Sprite Sheet Handler~~

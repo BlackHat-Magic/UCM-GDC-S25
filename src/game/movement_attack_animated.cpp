@@ -17,8 +17,8 @@ void MovementAttackAnimated::update(float time, float deltaTime) {
     if (time - lastAnimationTime >= animationSpeed) {
         lastAnimationTime = time;
         if (advanceAnimation()) {
-            isAttacking = false;
             if (isAttacking) {
+                isAttacking = false;
                 setAnimation(0);
                 return;
             }
