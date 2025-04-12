@@ -5,12 +5,14 @@
 #include <SDL2/SDL.h>
 #include "spritesheet.h"
 
+// creates a tilemap object with specified dimensions
 Tilemap::Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_width, int map_height)
     : sheet(sheet), tile_width(tile_width), tile_height(tile_height), map_width(map_width), map_height(map_height) {
     tiles = new int[map_width * map_height];
     std::fill(tiles, tiles + (map_width * map_height), -1);
 }
 
+// same as above but also loads map data from file
 Tilemap::Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_width, int map_height, const char *path)
     : Tilemap(sheet, tile_width, tile_height, map_width, map_height) {
     loadFromFile(path);
@@ -20,6 +22,7 @@ Tilemap::~Tilemap() {
     delete[] tiles;
 }
 
+// change the data at the given coordinates
 void Tilemap::setTile(int x, int y, int tile_index) {
     if (x >= 0 && x < map_width && y >= 0 && y < map_height) {
         tiles[y * map_width + x] = tile_index;
@@ -33,6 +36,7 @@ int Tilemap::getTile(int x, int y) const {
     return -1;
 }
 
+// render the entire visible portion of the tilemap
 void Tilemap::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, int dest_h) const {
     for (int y = 0; y < map_height; ++y) {
         for (int x = 0; x < map_width; ++x) {
@@ -51,6 +55,7 @@ void Tilemap::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, i
     }
 }
 
+// load map data from text file
 void Tilemap::loadFromFile(const char *path) {
     std::ifstream file(path);
     if (!file.is_open()) {

@@ -6,6 +6,7 @@ bool AudioSystem::init(int frequency, Uint16 format, int channels, int chunksize
         return false;
     }
 
+    // initialize audio object
     if (Mix_OpenAudio(frequency, format, channels, chunksize) < 0) {
         SDL_Log("Failed to open SDL_mixer audio: %s", Mix_GetError());
         return false;
@@ -21,6 +22,7 @@ void AudioSystem::quit() {
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
 }
 
+// load sound effect file from path
 SoundEffect::SoundEffect(const char * path) {
     chunk_ = Mix_LoadWAV(path);
     if (!chunk_) {
