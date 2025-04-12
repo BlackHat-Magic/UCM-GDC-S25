@@ -1,17 +1,16 @@
 #pragma once
 #include <SDL2/SDL.h>
 #include "utils/spritesheet.h"
+#include "utils/input.h"
 
-class Character {
+class Player {
 public:
-    Character (SDL_Renderer* renderer, const char* spritePath, int spriteWidth, int spriteHeight, int x, int y);
-    ~Character ();
+    Player (SDL_Renderer* renderer, const char* spritePath, int spriteWidth, int spriteHeight, int x, int y);
+    ~Player ();
 
-    void update (float deltaTime);
+    void update (float deltaTime, const InputHandler& inputHandler);
 
     void render (SDL_Renderer* renderer);
-
-    void handleEvent (const SDL_Event& e);
 
     SDL_Point getPosition () const;
 
