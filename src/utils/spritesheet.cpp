@@ -42,7 +42,7 @@ void Spritesheet::select_sprite(int i) {
 }
 
 // draw sprite on provided renderer
-void Spritesheet::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, int dest_h) {
+void Spritesheet::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, int dest_h, SDL_RendererFlip flip) {
 	SDL_Rect dest_rect;
 	// position to render at
 	dest_rect.x = dest_x;
@@ -51,5 +51,5 @@ void Spritesheet::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_
 	dest_rect.w = (dest_w == -1) ? sprite_width : dest_w;
 	dest_rect.h = (dest_h == -1) ? sprite_height : dest_h;
 
-	SDL_RenderCopy(renderer, texture, &src_rect, &dest_rect);
+	SDL_RenderCopyEx(renderer, texture, &src_rect, &dest_rect, 0, NULL, flip);
 }

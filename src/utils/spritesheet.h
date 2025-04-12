@@ -10,7 +10,7 @@ public:
 
 	void select_sprite(int i);
 	// draw sprite sheet on provided renderer
-	void draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w = -1, int dest_h = -1);
+	void draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w = -1, int dest_h = -1, SDL_RendererFlip flip = SDL_FLIP_NONE);
 
 private:
 	SDL_Texture *texture;

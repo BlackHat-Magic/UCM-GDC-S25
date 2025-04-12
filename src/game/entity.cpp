@@ -2,7 +2,7 @@
 #include <cstdlib>
 
 Entity::Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations)
-    : x(x), y(y), spriteWidth(sprite_width), spriteHeight(sprite_height),
+    : x(x), y(y), spriteWidth(sprite_width), spriteHeight(sprite_height), flipped(false),
       currentStage(0), currentAnimation(0), animations(animations)
 {
     spritesheet = new Spritesheet(renderer, sprite_path, sprite_width, sprite_height);
@@ -36,7 +36,8 @@ void Entity::render(SDL_Renderer* renderer) {
     if (sprite_index < 0) return;
 
     spritesheet->select_sprite(sprite_index);
-    spritesheet->draw(renderer, static_cast<int>(x), static_cast<int>(y), spriteWidth, spriteHeight);
+    SDL_RendererFlip flip = flipped ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    spritesheet->draw(renderer, static_cast<int>(x), static_cast<int>(y), spriteWidth * 5, spriteHeight * 5, flip);
 }
 
 SDL_Point Entity::getPosition() const {
@@ -55,6 +56,10 @@ void Entity::setAnimation(int animation_index) {
 
 void Entity::setStage(int stage_index) {
     currentStage = stage_index;
+}
+
+void Entity::setFlipped(bool flip) {
+    flipped = flip;
 }
 
 bool Entity::advanceAnimation() {

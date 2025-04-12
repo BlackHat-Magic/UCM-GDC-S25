@@ -16,6 +16,7 @@ public:
     void setAnimation(int animation_index);
     void setStage(int stage_index);
     bool advanceAnimation();
+    void setFlipped(bool flip);
 
     void setSpriteSheet(Spritesheet* sheet);
     void setSpriteSize(int width, int height);
@@ -26,5 +27,6 @@ private:
     int spriteWidth, spriteHeight;
     int currentStage;
     int currentAnimation;
+    bool flipped;
     int** animations;
 };
