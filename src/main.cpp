@@ -122,7 +122,7 @@ int main() {
 		player.update (time, deltaTime);
 
 		// update geezer
-		geezer.update (time, deltaTime);
+		geezer.update (time, deltaTime, cameraX, cameraY);
 
 		// clear renderer
 		SDL_RenderClear (renderer);

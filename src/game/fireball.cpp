@@ -35,8 +35,10 @@ void Fireball::update(float time, float deltaTime) {
     y += vy * deltaTime;
 }
 
-bool Fireball::isOffScreen(int screenWidth, int screenHeight) const {
-    SDL_Point pos = getPosition();
-    return pos.x < 0 || pos.x > screenWidth || pos.y < 0 ||
-           pos.y > screenHeight;
+bool Fireball::isOffScreen(int screenWidth, int screenHeight, float cameraX, float cameraY) const {
+    // screen space position
+    float screenX = x - cameraX;
+    float screenY = y - cameraY;
+
+    return screenX < 0 || screenX > screenWidth || screenY < 0 || screenY > screenHeight;
 }

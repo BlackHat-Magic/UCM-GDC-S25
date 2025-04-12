@@ -38,7 +38,7 @@ Geezer::~Geezer() {
     }
 }
 
-void Geezer::update(float time, float deltaTime) {
+void Geezer::update(float time, float deltaTime, float cameraX, float cameraY) {
     // Decide state based on distance to target
     float dist = distanceToTarget();
     
@@ -101,7 +101,7 @@ void Geezer::update(float time, float deltaTime) {
     const int screenHeight = 480;
     projectiles.erase(std::remove_if(projectiles.begin(), projectiles.end(), [&](Fireball* fb) {
         fb->update(time, deltaTime);
-        if (fb->isOffScreen(screenWidth, screenHeight)) {
+        if (fb->isOffScreen(screenWidth, screenHeight, cameraX, cameraY)) {
             delete fb;
             return true;
         }

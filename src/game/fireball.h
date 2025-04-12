@@ -15,7 +15,7 @@ public:
     void update(float time, float deltaTime) override;
 
     // Test if the projectile is off-screen.
-    bool isOffScreen(int screenWidth, int screenHeight) const;
+    bool isOffScreen(int screenWidth, int screenHeight, float cameraX, float cameraY) const;
 
     Entity* getOwner() const { return owner; }
     float getDamage() const { return damage; }
