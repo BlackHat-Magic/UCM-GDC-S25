@@ -7,10 +7,8 @@ Presently-unnamed game for UC Merced's Game Development Club Spring 2025 Game Ja
 - [x] ~~Character Class~~
     - Luke
 - [ ] Enem Implementations
-    - [ ] Geezer
+    - [X] ~~Geezer~~
         - Luke
-        - Presently fireballs are borked
-        - Pathfinding is good
     - [ ] unnamed melee guy
     - [ ] Boss (stretch goal)
 - [ ] Collisions
