@@ -16,6 +16,7 @@ Spritesheet::Spritesheet(SDL_Renderer *renderer, const char *path, int width, in
 	sprite_width = width;
 	sprite_height = height;
 
+	// how wide/tall is it in sprite terms
 	cols = sheet_width / sprite_width;
 	rows = sheet_height / sprite_height;
 
@@ -40,10 +41,13 @@ void Spritesheet::select_sprite(int i) {
 	src_rect.y = y * sprite_height;
 }
 
+// draw sprite on provided renderer
 void Spritesheet::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, int dest_h) {
 	SDL_Rect dest_rect;
+	// position to render at
 	dest_rect.x = dest_x;
 	dest_rect.y = dest_y;
+	// dimensions of sprite to draw
 	dest_rect.w = (dest_w == -1) ? sprite_width : dest_w;
 	dest_rect.h = (dest_h == -1) ? sprite_height : dest_h;
 
