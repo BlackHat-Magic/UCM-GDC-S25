@@ -29,6 +29,12 @@ void MovementAttackAnimated::update(float time, float deltaTime) {
         setStage(0);
         if (newDirection != NONE) {
             setAnimation(1);
+
+            if (newDirection == LEFT || newDirection == UP_LEFT || newDirection == DOWN_LEFT) {
+                setFlipped(false);
+            } else if (newDirection == RIGHT || newDirection == UP_RIGHT || newDirection == DOWN_RIGHT) {
+                setFlipped(true);
+            }
         } else {
             setAnimation(0);
         }
