@@ -3,6 +3,7 @@
 #include "fireball.h"
 #include "entity.h"
 #include <vector>
+#include <random>
 
 // Define states for the Geezer
 enum GeezerState {
@@ -29,11 +30,12 @@ public:
     MovementDirection control(float time, float deltaTime) override;
 
     // Render the enemy and its fireballs
-    void render(SDL_Renderer* renderer) override;
+    void render(SDL_Renderer* renderer);
 
 private:
     GeezerState currentState;
     GeezerState prevState;
+    SDL_Renderer* renderer;
     Entity* target; // for example, the player
 
     // destination
@@ -57,14 +59,14 @@ private:
     float projectileSpeed;  // speed of fireballs
                             // should probably be in the fireball class, but eh
     
-    std::random_device rd{};
-    std::mt19937 gen{rd()};
+    std::random_device rd;
+    std::mt19937 gen;
 
     // randomness introduced to fireball shots (std dev in radians)
     // we use 0.045rad or ~1.3deg; means ~98% of shots will be in
     // 5.2deg area centered on target
     float shotVariance;
-    
+
     // randomness introduced to destination (std dev in radians)
     // we use 0.35rad or ~4.9deg; means ~98% of shots will be in
     // 19.6deg area around the most obvious position

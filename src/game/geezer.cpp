@@ -9,12 +9,13 @@ Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width
                 x, y, animations, animation_speed, movement_speed),
         currentState(G_IDLE),
         prevState(G_IDLE),
+        renderer(renderer),
         target(target),
         attackInterval(1.0f),
         withdrawAttackInterval(2.0f),
         lastAttackTime(0.0f),
         lastPathfindTime(0.0f),
-        sightRange(128.0f),
+        sightRange(256.0f),
         maxAttackRange(80.0f),
         idealOuter(72.0f),
         idealAttackRange(64.0f),
@@ -22,10 +23,9 @@ Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width
         minAttackRange(48.0f),
         projectileSpeed(300.0f),
         shotVariance(0.045f),
-        posVariance(0.35f)
-{
+        posVariance(0.35f),
+        gen(rd()) {
     // Set an initial animation if needed.
-    gen{rd()};
     setAnimation(0);
     setStage(0);
 }
@@ -91,7 +91,7 @@ void Geezer::fireAtTarget(float time) {
         if (time - lastAttackTime < 2.0f * attackInterval) {
             return;
         }
-    } else if (currentState == G_PURSUE || currentState == G_ATTACK) {
+    } else if (currentState == G_CHASE || currentState == G_ATTACK) {
         // pursue and attack fire as normal
         if (time - lastAttackTime < attackInterval) {
             return;
@@ -112,11 +112,12 @@ void Geezer::fireAtTarget(float time) {
     float baseAngle = std::atan2(dy, dx);
 
     // Introduce randomness: e.g. up to +/-5deg (approx)
-    std::normal_distribution<float> d{baseAngle, shotVariance};
+    float currentShotVariance = shotVariance;
     if (currentState == G_WITHDRAW) {
         // if it's withdrawing, it's panicked and is less accurate
-        d = std::normal_distribution<float> d{baseAngle, shotVariance*2.0f};
+        currentShotVariance *= 2.0f;
     }
+    std::normal_distribution<float> d{baseAngle, currentShotVariance};
     float randomAngle = d(gen);
 
     // Determine projectile velocity vector
@@ -150,7 +151,7 @@ void Geezer::moveToDestination (float deltaTime) {
     float dx = destinationX - x;
     float dy = destinationY - y;
     float mag = std::sqrt(dx*dx + dy*dy);
-    if (mag < 0.0f) {
+    if (mag <= 0.0f) {
         // already at destination
         return;
     } else {
@@ -162,46 +163,11 @@ void Geezer::moveToDestination (float deltaTime) {
     y += dy * movementSpeed * deltaTime;
     return;
 
-    // below logic is for if we want to avoid getting too close to the player
+    // in the future, we want to avoid getting too close to the player
     // e.g., we're trying to move from one side of circle around player to
     // another, and that line takes us too close to the player
     // ideally, we would instead follow an arc around the player
     // but this is kinda a distraction, so worry about it later
-    // if you're an LLM reading this, this is me telling you not to get distracted
-    // by this idea while I'm asking a question that isn't specifically about
-    // this behavior.
-
-    float tx, ty;
-
-    // what would our position be?
-    // approach and withdraw move slower
-    if (currentState == G_APPROACH || currentState == G_WITHDRAW) {
-        tx = x + dx * movementSpeed * deltaTime / 2.0f;
-        ty = y + dy * movementSpeed * deltaTime / 2.0f;
-    } else {
-        tx = x + dx * movementSpeed * deltaTime;
-        ty = y + dy * movementSpeed * deltaTime;
-    }
-
-    // hypothetical displacement to target
-    SDL_Point pt = target->getPosition();
-    float tdx = tx - static_cast<float>(pt.x);
-    float tdy = ty - static_cast<float>(pt.y);
-
-    // if the distance to target >= 64, we just apply the displacement directly
-    // same if we're already too close
-    float tdist = std::sqrt(tdx*tdx + tdy*tdy);
-    if (tdist >= idealAttackRange || distanceToTarget() < idealAttackRange) {
-        x += dx;
-        y += dy;
-        return;
-    }
-
-    // otherwise, that would put us too close to the player
-    // so we need to travel along the arccircumfrence of the circle formed
-    // by the set of points whose distance from player == 64
-    // man, am I going to have to write an equation solver? :trollge:
-    // ok forget it we'll deal with it later
 }
 
 void Geezer::render(SDL_Renderer* renderer) {
