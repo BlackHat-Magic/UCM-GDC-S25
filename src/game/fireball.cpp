@@ -9,8 +9,22 @@ Fireball::Fireball(SDL_Renderer* renderer, const char* sprite_path,
       owner(owner),
       damage(damage)
 {
-    // For a projectile the animation can be as simple as a static sprite.
-    // Set any animation state as needed.
+    int* static_frame = new int[2]{0, -1};
+    int** fireball_animations = new int*[2];
+    fireball_animations[0] = static_frame;
+    fireball_animations[1] = nullptr;
+
+    setSpriteSheet(new Spritesheet(
+        renderer,
+        sprite_path,
+        sprite_width,
+        sprite_height 
+    ));
+    setSpriteSize(sprite_width, sprite_height);
+    setPosition(static_cast<int>(x), static_cast<int>(y));
+    setAnimations(fireball_animations);
+
+    // Set animation state
     setAnimation(0);
     setStage(0);
 }
@@ -19,9 +33,6 @@ void Fireball::update(float time, float deltaTime) {
     // Move the fireball along its velocity
     x += vx * deltaTime;
     y += vy * deltaTime;
-
-    // Optionally, you might want to advance an animation sequence.
-    advanceAnimation();
 }
 
 bool Fireball::isOffScreen(int screenWidth, int screenHeight) const {

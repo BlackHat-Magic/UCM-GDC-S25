@@ -119,7 +119,7 @@ void Geezer::fireAtTarget(float time) {
         if (time - lastAttackTime < 2.0f * attackInterval) {
             return;
         }
-    } else if (currentState == G_CHASE || currentState == G_ATTACK) {
+    } else if (currentState == G_APPROACH || currentState == G_ATTACK) {
         // pursue and attack fire as normal
         if (time - lastAttackTime < attackInterval) {
             return;
@@ -153,7 +153,6 @@ void Geezer::fireAtTarget(float time) {
     float vy = std::sin(randomAngle) * projectileSpeed;
 
     // Create a new fireball.
-    // Assuming we have a fireball spritesheet with a suitable sprite.
     Fireball* fb = new Fireball(
         renderer, 
         "assets/sprites/fireball.png", 
