@@ -37,23 +37,17 @@ int main() {
 	}
 
 	Spritesheet sheet(renderer, "assets/sprites/arcanist.png", 24, 24);
-	sheet.select_sprite(0, 0);
-	sheet.draw(renderer, 100, 100);
-	SDL_RenderPresent(renderer);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 
-	SDL_Delay(300);
+	for (int i = 0; i < 25; i++) {
+		sheet.select_sprite(i % 5);
+		sheet.draw(renderer, 100, 100, 96, 96);
+		SDL_RenderPresent(renderer);
 
-	sheet.select_sprite(1, 0);
-	sheet.draw(renderer, 100, 100);
-	SDL_RenderPresent(renderer);
+		SDL_RenderClear(renderer);
 
-	SDL_Delay(300);
-
-	sheet.select_sprite(2, 0);
-	sheet.draw(renderer, 100, 100);
-	SDL_RenderPresent(renderer);
-
-	SDL_Delay(10000);
+		SDL_Delay(350);
+	}
 
 	SDL_DestroyWindow(window);
 	SDL_Quit();

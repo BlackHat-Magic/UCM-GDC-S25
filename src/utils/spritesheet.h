@@ -7,7 +7,7 @@ public:
 	Spritesheet(SDL_Renderer *renderer, char const *path, int width, int height);
 	~Spritesheet();
 
-	void select_sprite(int x, int y);
+	void select_sprite(int i);
 	void draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w = -1, int dest_h = -1);
 
 private:

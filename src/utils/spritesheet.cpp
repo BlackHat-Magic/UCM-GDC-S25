@@ -24,9 +24,12 @@ Spritesheet::~Spritesheet() {
 	SDL_DestroyTexture(texture);
 }
 
-void Spritesheet::select_sprite(int x, int y) {
-	if (x < 0 || x >= cols || y < 0 || y >= rows)
+void Spritesheet::select_sprite(int i) {
+	if (i < 0 || i >= rows * cols)
 		throw std::out_of_range("Sprite index out of range");
+
+	int x = i % cols;
+	int y = i / cols;
 
 	src_rect.x = x * sprite_width;
 	src_rect.y = y * sprite_height;
