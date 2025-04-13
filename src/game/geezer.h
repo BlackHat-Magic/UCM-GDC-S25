@@ -1,14 +1,15 @@
 #pragma once
 
 #include "movement_attack_animated.h"
-#include "entity.h"
-#include "player.h"
-#include "entity_manager.h"
+#include "entity.h"        // Included via movement_attack_animated.h
+#include "player.h"        // Needed for target type check potentially
+#include "entity_manager.h" // Needed for adding fireballs
 #include <vector>
 #include <random>
+#include <limits> // For numeric_limits
 
 // Define states for the Geezer
-enum GeezerState {
+enum class GeezerState {
     G_IDLE,
     G_CHASE,
     G_APPROACH,
@@ -19,65 +20,51 @@ enum GeezerState {
 
 class Geezer : public MovementAttackAnimated {
 public:
-    // The Geezer takes a pointer to its target (e.g., the player)
-    Geezer(SDL_Renderer* renderer, EntityManager* entityManager,
-            const char* sprite_path, int sprite_width, int sprite_height,
-            float x, float y, int** animations, float animation_speed,
-            float movement_speed, Entity* target);
+    Geezer(
+        SDL_Renderer* renderer, EntityManager* entityManager,
+        const char* sprite_path, int sprite_width, int sprite_height, float x,
+        float y, int** animations, float animation_speed,
+        float movement_speed, Entity* target
+    );
 
-    Direction control(Tilemap *map, float time, float deltaTime) override;
+    // Control now modifies vx, vy directly
+    void control(Tilemap* map, float time, float deltaTime) override;
 
 private:
-    EntityManager* entityManager;
+    EntityManager* entityManager; // To spawn fireballs
     GeezerState currentState;
     GeezerState prevState;
-    SDL_Renderer* renderer;
-    Entity* target; // for example, the player
-    // Player* playerTarget;
+    SDL_Renderer* renderer; // Needed to pass to Fireball constructor
+    Entity* target;         // The entity the Geezer targets (e.g., player)
 
-    // destination
-    float destinationX;
-    float destinationY;
+    // Destination for movement states
+    float destinationX = 0.0f;
+    float destinationY = 0.0f;
 
     // Timing for attacks
-    float attackInterval;           // seconds between fireballs
-    float lastAttackTime;           // timestamp of the last fired projectile
+    float attackInterval; // seconds between fireballs
+    float lastAttackTime; // timestamp of the last fired projectile
 
-    float lastPathfindTime; // last time it pathfinded for strafing
-    float sightRange;       // dist > 256           -> idle (can't see)
-    float maxAttackRange;   // 128  < dist < 256    -> chase (way too far)
-    float idealOuter;       // 112  < dist < 128    -> approach (a lil too far)
-    float idealAttackRange; // 80   < dist < 112    -> attack (just right)
-    float idealInner;       // 64   < dist < 80     -> withdraw (a lil too close)
-    float minAttackRange;   // dist < 64            -> flee (way too close)
-                            
-    float projectileSpeed;  // speed of fireballs
-                            // should probably be in the fireball class, but eh
-    
+    // AI parameters
+    float lastPathfindTime; // last time it chose a new destination
+    float sightRange;       // Max distance to see target
+    float maxAttackRange;   // Outer range for chasing
+    float idealOuter;       // Outer range for approaching
+    float idealAttackRange; // Target distance for attacking/strafing
+    float idealInner;       // Inner range for withdrawing
+    float minAttackRange;   // Inner range for fleeing
+
+    float projectileSpeed; // Speed of fireballs
+
+    // Randomness for AI behavior
     std::random_device rd;
     std::mt19937 gen;
+    float shotVariance; // Inaccuracy for shots (std dev in radians)
+    float posVariance;  // Randomness for destination selection (std dev radians)
 
-    // randomness introduced to fireball shots (std dev in radians)
-    // we use 0.045rad or ~1.3deg; means ~98% of shots will be in
-    // 5.2deg area centered on target
-    float shotVariance;
-
-    // randomness introduced to destination (std dev in radians)
-    // we use 0.35rad or ~4.9deg; means ~98% of shots will be in
-    // 19.6deg area around the most obvious position
-    // this gives the feeling of the geezer strafing around the
-    // player
-    float posVariance;
-
-    // Fire a projectile at the target with some inaccuracy
+    // AI Helper methods
     void fireAtTarget(float time);
-
-    // Helper: compute Euclidean distance to target
     float distanceToTarget() const;
-
-    // select a destination point close to target
-    void setDestination (float time);
-
-    // move to destination while maintaining arc
-    Direction moveToDestination ();
+    void setDestination(float time); // Calculate a new movement destination
+    void moveToDestination();        // Set vx, vy towards current destination
 };

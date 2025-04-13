@@ -5,235 +5,270 @@
 #include <SDL2/SDL.h>
 #include "spritesheet.h"
 #include <iostream>
+#include <cmath> // For std::floor, std::ceil, std::abs
 
-// creates a tilemap object with specified dimensions
-Tilemap::Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_width, int map_height, int *tiles_with_collider)
-    : sheet(sheet), tile_width(tile_width), tile_height(tile_height), map_width(map_width), map_height(map_height), 
-      tiles_with_collider(tiles_with_collider) {
-    tiles = new int[map_width * map_height];
-    std::fill(tiles, tiles + (map_width * map_height), -1);
-
-    collider = new long long[(map_width * map_height + 63) / 64];
+// Constructor implementation
+Tilemap::Tilemap(
+    Spritesheet* sheet, int tile_width, int tile_height, int map_width,
+    int map_height, const std::map<int, CollisionLayer>& tile_collision_layers
+) :
+    sheet(sheet),
+    tile_width(tile_width),
+    tile_height(tile_height),
+    map_width(map_width),
+    map_height(map_height),
+    tiles(map_width * map_height, -1), // Initialize vector with -1
+    tileCollisionLayers(tile_collision_layers) // Copy the layer map
+{
+    if (!sheet) {
+        throw std::runtime_error("Tilemap created with null spritesheet.");
+    }
+    if (tile_width <= 0 || tile_height <= 0 || map_width <= 0 ||
+        map_height <= 0) {
+        throw std::runtime_error("Invalid Tilemap dimensions.");
+    }
 }
 
-// same as above but also loads map data from file
-Tilemap::Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_width, int map_height, int *tiles_with_collider, const char *path)
-    : Tilemap(sheet, tile_width, tile_height, map_width, map_height, tiles_with_collider) {
-    loadFromFile(path);
+// Constructor that loads from file
+Tilemap::Tilemap(
+    Spritesheet* sheet, int tile_width, int tile_height, int map_width,
+    int map_height, const std::map<int, CollisionLayer>& tile_collision_layers,
+    const char* path
+) :
+    Tilemap(
+        sheet, tile_width, tile_height, map_width, map_height,
+        tile_collision_layers
+    ) // Delegate to the other constructor
+{
+    loadFromFile(path); // Load data after basic initialization
 }
 
 Tilemap::~Tilemap() {
-    delete[] tiles;
-    // delete[] tiles_with_collider;
-    delete[] collider;
+    // No manual memory management needed for std::vector or std::map
+    // Spritesheet ownership is assumed to be external
 }
 
-// change the data at the given coordinates
-void Tilemap::setTile(int x, int y, int tile_index) {
-    if (x >= 0 && x < map_width && y >= 0 && y < map_height) {
-        tiles[y * map_width + x] = tile_index;
-        
-        for (int i = 0; tiles_with_collider[i] != -1; ++i) {
-            if (tile_index == tiles_with_collider[i]) {
-                int index = y * map_width + x;
-                collider[index / 64] |= (1LL << (index % 64));
-            } else {
-                int index = y * map_width + x;
-                collider[index / 64] &= ~(1LL << (index % 64));
-            }
-        }
+// Set tile data at given tile coordinates
+void Tilemap::setTile(int tileX, int tileY, int tile_index) {
+    if (tileX >= 0 && tileX < map_width && tileY >= 0 && tileY < map_height) {
+        tiles[tileY * map_width + tileX] = tile_index;
     }
 }
 
-int Tilemap::getTile(int x, int y) const {
-    if (x >= 0 && x < map_width && y >= 0 && y < map_height) {
-        return tiles[y * map_width + x];
+// Get tile index at given tile coordinates
+int Tilemap::getTile(int tileX, int tileY) const {
+    if (tileX >= 0 && tileX < map_width && tileY >= 0 && tileY < map_height) {
+        return tiles[tileY * map_width + tileX];
     }
-    return -1;
+    return -1; // Out of bounds or empty
 }
 
-// render the entire visible portion of the tilemap
-void Tilemap::draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w, int dest_h) const {
+// Get collision layer of a tile at given coordinates
+CollisionLayer Tilemap::getTileLayer(int tileX, int tileY) const {
+     int tileIndex = getTile(tileX, tileY);
+     if (tileIndex != -1) {
+         auto it = tileCollisionLayers.find(tileIndex);
+         if (it != tileCollisionLayers.end()) {
+             return it->second; // Return the layer from the map
+         }
+     }
+     return CollisionLayer::NONE; // No specific layer defined for this tile
+}
+
+
+// Render the tilemap
+void Tilemap::draw(
+    SDL_Renderer* renderer, int dest_x, int dest_y, int dest_w, int dest_h
+) const {
+    int drawTileW = (dest_w == -1) ? tile_width : dest_w;
+    int drawTileH = (dest_h == -1) ? tile_height : dest_h;
+
     for (int y = 0; y < map_height; ++y) {
         for (int x = 0; x < map_width; ++x) {
             int tile_index = getTile(x, y);
-            if (tile_index != -1) {
-                int width = (dest_w == -1) ? tile_width : dest_w;
-                int height = (dest_h == -1) ? tile_height : dest_h;
+            if (tile_index != -1) { // Only draw valid tiles
+                int drawPosX = dest_x + x * drawTileW;
+                int drawPosY = dest_y + y * drawTileH;
 
-                int pos_x = dest_x + x * width;
-                int pos_y = dest_y + y * height;
-
-                sheet->select_sprite(tile_index);
-                sheet->draw(renderer, pos_x, pos_y, width, height);
-            }
-        }
-    }
-}
-
-// load map data from text file
-void Tilemap::loadFromFile(const char *path) {
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        throw std::runtime_error("Failed to open tilemap file.");
-    }
-
-    std::string line;
-    int y = 0;
-
-    while (std::getline(file, line) && y < map_height) {
-        std::stringstream ss(line);
-        int x = 0;
-        int tile_index;
-
-        while (ss >> tile_index && x < map_width) {
-            setTile(x, y, tile_index);
-            ++x;
-        }
-        ++y;
-    }
-
-    file.close();
-}
-
-void Tilemap::saveToFile(const char *path) const {
-    std::ofstream file(path);
-    if (!file.is_open()) {
-        throw std::runtime_error("Failed to open tilemap file for saving.");
-    }
-
-    for (int y = 0; y < map_height; ++y) {
-        for (int x = 0; x < map_width; ++x) {
-            file << getTile(x, y);
-            if (x < map_width - 1) {
-                file << " ";
-            }
-        }
-        file << std::endl;
-    }
-
-    file.close();
-}
-
-Direction Tilemap::intersects_rect(float x, float y, float w, float h) const {
-    // convert from world space to tile space
-    x = x / tile_width;
-    y = y / tile_height;
-    w = w / tile_width;
-    h = h / tile_height;
-
-    Direction dir = NONE;
-    int left = static_cast<int>(x - w / 2.0f);
-    int right = static_cast<int>(x + w / 2.0f);
-    int top = static_cast<int>(y - h / 2.0f);
-    int bottom = static_cast<int>(y + h / 2.0f);
-
-    for (int i = left; i <= right; ++i) {
-        for (int j = top; j <= bottom; ++j) {
-            if (i < 0 || j < 0 || i >= map_width || j >= map_height) {
-                continue;
-            }
-
-            int index = j * map_width + i;
-            long long byte = collider[index / 64];
-            long long bit = (byte >> (index % 64)) & 1;
-
-            if (bit == 1) {
-                float i_f = static_cast<float>(i) + 0.5f;
-                float j_f = static_cast<float>(j) + 0.5f;
-                float x_dif = std::abs(x - i_f);
-                float y_dif = std::abs(y - j_f);
-
-                if (x_dif > y_dif) {
-                    if (dir == UP) {
-                        dir = (x > i_f) ? UP_LEFT : UP_RIGHT;
-                        return dir;
-                    }
-                    if (dir == DOWN) {
-                        dir = (x > i_f) ? DOWN_LEFT : DOWN_RIGHT;
-                        return dir;
-                    }
-                    dir = (x > i_f) ? LEFT : RIGHT;
-                } else {
-                    if (dir == LEFT) {
-                        dir = (y > j_f) ? DOWN_LEFT : UP_LEFT;
-                        return dir;
-                    }
-                    if (dir == RIGHT) {
-                        dir = (y > j_f) ? DOWN_RIGHT : UP_RIGHT;
-                        return dir;
-                    }
-                    dir = (y > j_f) ? UP : DOWN;
+                try {
+                    sheet->select_sprite(tile_index);
+                    sheet->draw(renderer, drawPosX, drawPosY, drawTileW, drawTileH);
+                } catch (const std::out_of_range& oor) {
+                     std::cerr << "Tilemap draw error: Tile index " << tile_index
+                               << " out of range for spritesheet." << std::endl;
+                     // Optionally draw an error tile or skip
                 }
             }
         }
     }
-
-    return dir;
 }
 
+// Load map data from a text file
+void Tilemap::loadFromFile(const char* path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error(
+            std::string("Failed to open tilemap file: ") + path
+        );
+    }
+
+    std::string line;
+    int y = 0;
+    while (std::getline(file, line) && y < map_height) {
+        std::stringstream ss(line);
+        int x = 0;
+        int tile_index;
+        while (ss >> tile_index && x < map_width) {
+            setTile(x, y, tile_index);
+            x++;
+        }
+        y++;
+    }
+
+    if (y < map_height) {
+         std::cerr << "Warning: Tilemap file " << path << " has fewer rows (" << y
+                   << ") than expected (" << map_height << ")." << std::endl;
+    }
+
+    file.close();
+}
+
+// Internal helper to check if a specific tile index collides with a given mask
+bool Tilemap::isTileCollidable(int tileIndex, CollisionLayer entityMask) const {
+    if (tileIndex == -1) return false; // Empty tile
+
+    auto it = tileCollisionLayers.find(tileIndex);
+    if (it != tileCollisionLayers.end()) {
+        // Check if the tile's layer interacts with the entity's mask
+        return ::checkCollision(entityMask, it->second);
+    }
+    return false; // Tile index not found in collision map, assume non-collidable
+}
+
+// New collision check function
+bool Tilemap::checkCollision(const SDL_FRect& boundingBox, CollisionLayer entityMask) const {
+    // Convert world coordinates (boundingBox) to tile coordinates
+    // Note: Assumes boundingBox x,y is top-left. Adjust if it's center.
+    int startTileX = static_cast<int>(std::floor(boundingBox.x / tile_width));
+    int endTileX = static_cast<int>(std::floor((boundingBox.x + boundingBox.w) / tile_width));
+    int startTileY = static_cast<int>(std::floor(boundingBox.y / tile_height));
+    int endTileY = static_cast<int>(std::floor((boundingBox.y + boundingBox.h) / tile_height));
+
+    // Clamp tile coordinates to map bounds
+    startTileX = std::max(0, startTileX);
+    endTileX = std::min(map_width - 1, endTileX);
+    startTileY = std::max(0, startTileY);
+    endTileY = std::min(map_height - 1, endTileY);
+
+    // Check all tiles the bounding box overlaps
+    for (int ty = startTileY; ty <= endTileY; ++ty) {
+        for (int tx = startTileX; tx <= endTileX; ++tx) {
+            int tileIndex = getTile(tx, ty);
+            if (isTileCollidable(tileIndex, entityMask)) {
+                // Found a collision with a relevant tile layer
+                return true;
+            }
+        }
+    }
+
+    return false; // No collision found
+}
+
+
+// --- Deprecated / Needs Update ---
+/*
+Direction Tilemap::intersects_rect(float x, float y, float w, float h) const {
+    // This function needs significant rework to use layers/masks and provide
+    // useful collision response information (like normals).
+    // Returning Direction is not ideal for velocity-based movement.
+    // Keeping the old implementation commented out for reference.
+
+    // ... (old implementation) ...
+
+    return NONE; // Placeholder
+}
+*/
+
+// Raycast function - might need updating to consider layers
 float Tilemap::raycast(float x, float y, float angle) const {
-    // convert from world space to tile space
-    x = x / tile_width;
-    y = y / tile_height;
+    // Convert start position to tile space (assuming x,y is center)
+    float startTileX = x / tile_width;
+    float startTileY = y / tile_height;
 
-    float raydir_x = std::cos(angle);
-    float raydir_y = std::sin(angle);
+    float rayDirX = std::cos(angle);
+    float rayDirY = std::sin(angle);
 
-    int map_x = static_cast<int>(x);
-    int map_y = static_cast<int>(y);
+    // Current tile coordinates
+    int mapX = static_cast<int>(startTileX);
+    int mapY = static_cast<int>(startTileY);
 
-    float delta_dist_x = (raydir_x == 0) ? 1e30f : std::abs(1.0f / raydir_x);
-    float delta_dist_y = (raydir_y == 0) ? 1e30f : std::abs(1.0f / raydir_y);
-    float side_dist_x, side_dist_y;
-    int step_x, step_y;
-    if (raydir_x < 0) {
-        step_x = -1;
-        side_dist_x = (x - static_cast<float>(map_x)) * delta_dist_x;
+    // Length of ray from current position to next x or y-side
+    float sideDistX, sideDistY;
+
+    // Length of ray from one x or y-side to next x or y-side
+    float deltaDistX = (rayDirX == 0) ? 1e30f : std::abs(1.0f / rayDirX);
+    float deltaDistY = (rayDirY == 0) ? 1e30f : std::abs(1.0f / rayDirY);
+    float perpWallDist;
+
+    // Which direction to step in x or y-direction (either +1 or -1)
+    int stepX, stepY;
+
+    bool hit = false; // Was there a wall hit?
+    int side;         // Was a NS or a EW wall hit?
+
+    // Calculate step and initial sideDist
+    if (rayDirX < 0) {
+        stepX = -1;
+        sideDistX = (startTileX - mapX) * deltaDistX;
     } else {
-        step_x = 1;
-        side_dist_x = (static_cast<float>(map_x + 1) - x) * delta_dist_x;
+        stepX = 1;
+        sideDistX = (mapX + 1.0f - startTileX) * deltaDistX;
     }
-    if (raydir_y < 0) {
-        step_y = -1;
-        side_dist_y = (y - static_cast<float>(map_y)) * delta_dist_y;
+    if (rayDirY < 0) {
+        stepY = -1;
+        sideDistY = (startTileY - mapY) * deltaDistY;
     } else {
-        step_y = 1;
-        side_dist_y = (static_cast<float>(map_y + 1) - y) * delta_dist_y;
+        stepY = 1;
+        sideDistY = (mapY + 1.0f - startTileY) * deltaDistY;
     }
-    bool hit = false;
-    int side = 0; // 0: X-side, 1: Y-side
+
+    // Perform DDA (Digital Differential Analysis)
     while (!hit) {
-        if (side_dist_x < side_dist_y) {
-            side_dist_x += delta_dist_x;
-            map_x += step_x;
-            side = 0;
+        // Jump to next map square, OR in x-direction, OR in y-direction
+        if (sideDistX < sideDistY) {
+            sideDistX += deltaDistX;
+            mapX += stepX;
+            side = 0; // Hit vertical wall line
         } else {
-            side_dist_y += delta_dist_y;
-            map_y += step_y;
-            side = 1;
+            sideDistY += deltaDistY;
+            mapY += stepY;
+            side = 1; // Hit horizontal wall line
         }
 
-        if (map_x < 0 || map_x >= map_width || map_y < 0 || map_y >= map_height) {
-            return -1.0f;
+        // Check if ray is outside map bounds
+        if (mapX < 0 || mapX >= map_width || mapY < 0 || mapY >= map_height) {
+            return -1.0f; // Hit map boundary (or went to infinity)
         }
 
-        int index = map_y * map_width + map_x;
-        long long byte = collider[index / 64];
-        long long bit = (byte >> (index % 64)) & 1;
-
-        if (bit == 1) {
-            hit = true;
+        // Check if ray has hit a collidable tile
+        // *** TODO: Update this check to use isTileCollidable with an appropriate mask ***
+        // For now, just checks if the tile exists in the collision layer map
+        int hitTileIndex = getTile(mapX, mapY);
+        if (hitTileIndex != -1 && tileCollisionLayers.count(hitTileIndex)) {
+             // Assuming any tile in the map is collidable for raycast for now
+             // A proper implementation would pass the entity's mask
+             // if (isTileCollidable(hitTileIndex, MASK_RAYCAST_TARGETS)) { hit = true; }
+             hit = true;
         }
     }
 
-    float perp_wall_dist;
+    // Calculate distance projected on camera direction (Euclidean distance would be sqrt(distSq))
     if (side == 0) {
-        perp_wall_dist = (static_cast<float>(map_x) - x + (1.0f - static_cast<float>(step_x)) / 2.0f) / raydir_x;
+        perpWallDist = (sideDistX - deltaDistX);
     } else {
-        perp_wall_dist = (static_cast<float>(map_y) - y + (1.0f - static_cast<float>(step_y)) / 2.0f) / raydir_y;
+        perpWallDist = (sideDistY - deltaDistY);
     }
-    // convert dist to world space
-    perp_wall_dist *= tile_width; // technically doesn't work if tile_width != tile_height, but uh, shut up
-    return perp_wall_dist;
+
+    // Convert distance back to world space
+    return perpWallDist * tile_width; // Assumes square tiles for simplicity
 }

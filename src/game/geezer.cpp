@@ -1,252 +1,249 @@
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
-#include <iostream>
+#include <iostream> // For debugging
 
 #include "geezer.h"
+#include "fireball.h" // Include fireball to spawn it
 
-Geezer::Geezer(SDL_Renderer* renderer, EntityManager* entityManager,
-            const char* sprite_path, int sprite_width, int sprite_height, float x,
-            float y, int** animations, float animation_speed, float movement_speed,
-            Entity* target)
-    : MovementAttackAnimated(renderer, sprite_path, sprite_width, sprite_height,
-                x, y, animations, animation_speed, movement_speed),
-        entityManager(entityManager),
-        currentState(G_IDLE),
-        prevState(G_IDLE),
-        renderer(renderer),
-        target(target),
-        
-        attackInterval(1.0f),
-        lastAttackTime(0.0f),
-        
-        lastPathfindTime(0.0f),
-        sightRange(256.0f),
-        maxAttackRange(128.0f),
-        idealOuter(112.0f),
-        idealAttackRange(96.0f),
-        idealInner(80.0f),
-        minAttackRange(64.0f),
-        
-        projectileSpeed(300.0f),
-        
-        shotVariance(0.045f),
-        posVariance(0.35f),
-        
-        gen(rd()) {
-    // Set an initial animation if needed.
+Geezer::Geezer(
+    SDL_Renderer* renderer, EntityManager* entityManager,
+    const char* sprite_path, int sprite_width, int sprite_height, float x,
+    float y, int** animations, float animation_speed, float movement_speed,
+    Entity* target
+) :
+    MovementAttackAnimated(
+        renderer, sprite_path, sprite_width, sprite_height, x, y, animations,
+        animation_speed, movement_speed
+    ),
+    entityManager(entityManager),
+    currentState(GeezerState::G_IDLE),
+    prevState(GeezerState::G_IDLE),
+    renderer(renderer), // Store renderer for fireball creation
+    target(target),
+    attackInterval(1.0f),
+    lastAttackTime(0.0f),
+    lastPathfindTime(0.0f),
+    sightRange(256.0f),
+    maxAttackRange(128.0f),
+    idealOuter(112.0f),
+    idealAttackRange(96.0f),
+    idealInner(80.0f),
+    minAttackRange(64.0f),
+    projectileSpeed(300.0f),
+    shotVariance(0.045f), // Approx +/- 2.6 degrees std dev
+    posVariance(0.35f),   // Approx +/- 20 degrees std dev
+    gen(rd()) {
+    // Set initial animation (assuming animations are provided correctly)
     setAnimation(0);
     setStage(0);
+
+    // Set collision layer and mask
+    layer = CollisionLayer::LAYER_AIR_ENEMY; // Geezer flies
+    mask = CollisionLayer::MASK_AIR_ENEMY;
 }
 
-Direction Geezer::control(Tilemap *map, float time, float deltaTime) {
-    if (!target || target->isMarkedForDeletion ()) {
-        currentState = G_IDLE;
-        return NONE;
+void Geezer::control(Tilemap* map, float time, float deltaTime) {
+    // Reset velocity each frame
+    vx = 0.0f;
+    vy = 0.0f;
+
+    if (!target || target->isMarkedForDeletion()) {
+        currentState = GeezerState::G_IDLE;
+        // No movement if no target or target gone
+        return;
     }
 
-    // Decide state based on distance to target
+    // --- State Logic ---
     float dist = distanceToTarget();
-    
-    // update previous state
     prevState = currentState;
 
-    // set current state
+    // Determine state based on distance
     if (dist > sightRange) {
-        currentState = G_IDLE;
+        currentState = GeezerState::G_IDLE;
     } else if (dist > maxAttackRange) {
-        currentState = G_CHASE;
+        currentState = GeezerState::G_CHASE;
     } else if (dist > idealOuter) {
-        currentState = G_APPROACH;
+        currentState = GeezerState::G_APPROACH;
     } else if (dist > idealInner) {
-        currentState = G_ATTACK;
+        currentState = GeezerState::G_ATTACK;
     } else if (dist > minAttackRange) {
-        currentState = G_WITHDRAW;
+        currentState = GeezerState::G_WITHDRAW;
     } else {
-        currentState = G_FLEE;
+        currentState = GeezerState::G_FLEE;
     }
 
-    // if state has changed, we have a new target destination
-    if (prevState != currentState) {
+    // --- Destination Logic ---
+    // Update destination if state changed or periodically, or if target moved significantly
+    bool targetMovedSignificantly = false;
+    if (currentState != GeezerState::G_IDLE && currentState != GeezerState::G_ATTACK) {
+         SDL_Point pt = target->getPosition();
+         float targetX = static_cast<float>(pt.x);
+         float targetY = static_cast<float>(pt.y);
+         float destDx = targetX - destinationX;
+         float destDy = targetY - destinationY;
+         // Check if current destination is now outside the desired range relative to target's *current* pos
+         float destDistToTarget = std::sqrt(destDx * destDx + destDy * destDy);
+         // Example threshold: if destination is > 32 pixels off from ideal range center
+         if (std::abs(destDistToTarget - idealAttackRange) > 32.0f) {
+              targetMovedSignificantly = true;
+         }
+    }
+
+
+    if (prevState != currentState || targetMovedSignificantly || (time - lastPathfindTime > 2.0f)) {
         setDestination(time);
-    } else if (time - lastPathfindTime > 2.0f) {
-        // new position if we haven't moved in >2sec
-        setDestination(time);
-    }
-    
-    // check AGAIN if the player is too far
-    // because for some god-damned reason it sometimes just doesn't
-    // set a new destination
-    // but for *some reason*, this is reliable
-
-    // wait I understand now. It's possible for the player to move
-    // to a new position that necessitates a new destination
-    // without the Geezer changing state in under 2 seconds
-    // which results in the Geezer having an outdated destination
-    SDL_Point pt = target->getPosition();
-    float targetX = static_cast<float>(pt.x);
-    float targetY = static_cast<float>(pt.y);
-    float destdx = targetX - destinationX;
-    float destdy = targetY - destinationY;
-    float destDistToTarget = std::sqrt(destdx*destdx + destdy*destdy);
-    if (destDistToTarget > maxAttackRange || destDistToTarget < minAttackRange) {
-        setDestination (time);
     }
 
-    // if we're in a moving state, move toward destination
-    Direction dir = moveToDestination();
 
-    // if we can fire, fire
+    // --- Action Logic ---
+    // Move towards destination if in a moving state
+    if (currentState != GeezerState::G_IDLE && currentState != GeezerState::G_ATTACK) {
+        moveToDestination(); // Sets vx, vy
+    }
+
+    // Fire projectile based on state and timing
     fireAtTarget(time);
 
-    return dir;
+    // Base class update will handle animation and actual movement/collision
 }
 
-// handles state-specific firing logic
 void Geezer::fireAtTarget(float time) {
-    if (currentState == G_IDLE || currentState == G_FLEE) {
-        // idle and flee don't fire
-        return;
-    } else if (currentState == G_CHASE) {
-        // chase fire infrequently
-        if (time - lastAttackTime < 2.0f * attackInterval) {
-            return;
-        }
-    } else if (currentState == G_APPROACH || currentState == G_ATTACK) {
-        // pursue and attack fire as normal
-        if (time - lastAttackTime < attackInterval) {
-            return;
-        }
-    } else if (currentState == G_WITHDRAW) {
-        // withdraw fires extra frequently
-        if (time - lastAttackTime < attackInterval / 2.0f) {
-            return;
-        }
-    }
-    
-    // Get the target's location.
-    SDL_Point tgt = target->getPosition();
+    // Check if allowed to fire based on state
+    bool canFire = false;
+    float currentInterval = attackInterval;
 
-    // Compute the desired firing angle (in radians)
-    float dx = static_cast<float>(tgt.x) - x;
-    float dy = static_cast<float>(tgt.y) - y;
+    switch (currentState) {
+    case GeezerState::G_CHASE:
+        currentInterval = 2.0f * attackInterval; // Fire less often when chasing
+        canFire = true;
+        break;
+    case GeezerState::G_APPROACH:
+    case GeezerState::G_ATTACK:
+        canFire = true; // Normal firing rate
+        break;
+    case GeezerState::G_WITHDRAW:
+        currentInterval = attackInterval / 2.0f; // Fire more often when withdrawing
+        canFire = true;
+        break;
+    case GeezerState::G_IDLE:
+    case GeezerState::G_FLEE:
+    default:
+        canFire = false; // Don't fire when idle or fleeing
+        break;
+    }
+
+    // Check timing
+    if (!canFire || (time - lastAttackTime < currentInterval)) {
+        return;
+    }
+
+    // --- Fire the projectile ---
+    if (!target) return; // Should not happen if state logic is correct, but safety check
+
+    SDL_Point tgtPos = target->getPosition();
+    float targetX = static_cast<float>(tgtPos.x);
+    float targetY = static_cast<float>(tgtPos.y);
+
+    // Calculate base angle to target
+    float dx = targetX - x;
+    float dy = targetY - y;
     float baseAngle = std::atan2(dy, dx);
 
-    // Introduce randomness: e.g. up to +/-5deg (approx)
+    // Add inaccuracy based on state
     float currentShotVariance = shotVariance;
-    if (currentState == G_WITHDRAW) {
-        // if it's withdrawing, it's panicked and is less accurate
-        currentShotVariance *= 2.0f;
+    if (currentState == GeezerState::G_WITHDRAW || currentState == GeezerState::G_FLEE) {
+        currentShotVariance *= 2.0f; // Less accurate when retreating/panicked
     }
-    std::normal_distribution<float> d{baseAngle, currentShotVariance};
-    float randomAngle = d(gen);
+    std::normal_distribution<float> dist(baseAngle, currentShotVariance);
+    float randomAngle = dist(gen);
 
-    // Determine projectile velocity vector
-    float vx = std::cos(randomAngle) * projectileSpeed;
-    float vy = std::sin(randomAngle) * projectileSpeed;
+    // Calculate projectile velocity vector
+    float proj_vx = std::cos(randomAngle) * projectileSpeed;
+    float proj_vy = std::sin(randomAngle) * projectileSpeed;
 
-    // Create a new fireball in entity manager
+    // Spawn the fireball using EntityManager
+    // Assuming fireball sprite is 16x16
     entityManager->addEntity<Fireball>(
-        renderer,
-        "assets/sprites/fireball.png",
-        16, 16,
-        x, y,
-        vx, vy,
-        this,
-        10.0f
+        renderer,                      // Pass the stored renderer
+        "assets/sprites/fireball.png", // Sprite path
+        16, 16,                        // Sprite dimensions
+        x, y,                          // Initial position (Geezer's position)
+        proj_vx, proj_vy,              // Initial velocity
+        this,                          // Owner is this Geezer instance
+        10.0f                          // Damage amount
     );
 
-    lastAttackTime = time;
-    attack(time);
+    lastAttackTime = time; // Record the time of the shot
+    attack(time);          // Trigger the attack animation in the base class
 }
 
-// handles state-specific speeds
-Direction Geezer::moveToDestination() {
-    // don't move if idle or already attacking
-    if (currentState == G_IDLE || currentState == G_ATTACK) {
-        return NONE;
+void Geezer::moveToDestination() {
+    // vx, vy are already reset in control()
+    if (currentState == GeezerState::G_IDLE || currentState == GeezerState::G_ATTACK) {
+        return; // Don't move in these states
     }
-    
-    // displacement to target position
+
     float dx = destinationX - x;
     float dy = destinationY - y;
-    float mag = dx*dx + dy*dy;
+    float distSq = dx * dx + dy * dy;
 
-    float threshold = 1.0f;
-    if (mag < threshold) {
-        return NONE;
+    // Stop if very close to the destination
+    float thresholdSq = 4.0f; // Stop within 2 pixels
+    if (distSq < thresholdSq) {
+        return; // Already at destination
     }
 
-    // Determine direction based on dx, dy (logic is fine)
-    if (std::abs(dx) > std::abs(dy)) { // More horizontal movement
-        if (dx > 0) { // Moving right
-            if (dy > 0.5f * dx) return DOWN_RIGHT;
-            if (dy < -0.5f * dx) return UP_RIGHT;
-            return RIGHT;
-        } else { // Moving left
-            if (dy > -0.5f * dx) return DOWN_LEFT;
-            if (dy < 0.5f * dx) return UP_LEFT;
-            return LEFT;
-        }
-    } else { // More vertical movement (or equal)
-         if (dy > 0) { // Moving down
-            if (dx > 0.5f * dy) return DOWN_RIGHT;
-            if (dx < -0.5f * dy) return DOWN_LEFT;
-            return DOWN;
-        } else { // Moving up
-            if (dx > -0.5f * dy) return UP_RIGHT;
-            if (dx < 0.5f * dy) return UP_LEFT;
-            return UP;
-        }
+    // Normalize direction vector and scale by movement speed
+    float dist = std::sqrt(distSq);
+    if (dist > 0) { // Avoid division by zero
+        vx = (dx / dist) * movementSpeed;
+        vy = (dy / dist) * movementSpeed;
     }
-
-    return NONE;
-
-    // in the future, we want to avoid getting too close to the player
-    // e.g., we're trying to move from one side of circle around player to
-    // another, and that line takes us too close to the player
-    // ideally, we would instead follow an arc around the player
-    // but this is kinda a distraction, so worry about it later
 }
 
 float Geezer::distanceToTarget() const {
-    // float_max if no target
     if (!target) return std::numeric_limits<float>::max();
 
-    // otherwise self-explanatory
     SDL_Point pt = target->getPosition();
     float dx = static_cast<float>(pt.x) - x;
     float dy = static_cast<float>(pt.y) - y;
     return std::sqrt(dx * dx + dy * dy);
 }
 
-void Geezer::setDestination (float time) {
-    // if we're supposed to stand still; don't bother
-    if (currentState == G_IDLE || currentState == G_ATTACK) {
-        destinationX = x;
+void Geezer::setDestination(float time) {
+    if (currentState == GeezerState::G_IDLE || currentState == GeezerState::G_ATTACK) {
+        destinationX = x; // Stay put
         destinationY = y;
-        return;
-    }
-    if (!target) {
+        lastPathfindTime = time;
         return;
     }
 
-    // get target position
+    if (!target) return; // No target, no destination
+
     SDL_Point pt = target->getPosition();
-    float ptx = static_cast<float>(pt.x);
-    float pty = static_cast<float>(pt.y);
+    float targetX = static_cast<float>(pt.x);
+    float targetY = static_cast<float>(pt.y);
 
-    // angle from target to geezer
-    float baseAngle = std::atan2(y - pty, x - ptx);
+    // Base angle from target towards Geezer (for orbiting)
+    float angleToGeezer = std::atan2(y - targetY, x - targetX);
 
-    // Introduce randomness: e.g. up to +/-10deg (approx)
-    std::normal_distribution<float> d{baseAngle, posVariance};
-    float randomAngle = d(gen);
+    // Determine target distance based on state
+    float targetDist = idealAttackRange;
+    if (currentState == GeezerState::G_CHASE || currentState == GeezerState::G_APPROACH) {
+         targetDist = idealOuter; // Try to get to the edge of ideal range
+    } else if (currentState == GeezerState::G_WITHDRAW || currentState == GeezerState::G_FLEE) {
+         targetDist = idealInner; // Try to back off to the inner edge
+    }
 
-    // set destination x and destination y
-    destinationX = ptx + std::cos(randomAngle) * idealAttackRange;
-    destinationY = pty + std::sin(randomAngle) * idealAttackRange;
 
-    // set last pathfind time
-    lastPathfindTime = time;
+    // Add randomness for strafing effect
+    std::normal_distribution<float> dist(angleToGeezer, posVariance);
+    float randomAngle = dist(gen);
+
+    // Calculate destination point around the target
+    destinationX = targetX + std::cos(randomAngle) * targetDist;
+    destinationY = targetY + std::sin(randomAngle) * targetDist;
+
+    lastPathfindTime = time; // Record when destination was set
 }
