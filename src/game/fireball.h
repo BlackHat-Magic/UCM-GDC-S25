@@ -9,7 +9,6 @@ public:
     Fireball(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
              int sprite_height, float x, float y, float vx, float vy,
              Entity* owner, float damage);
-    // ~Fireball();
 
     // For the projectile, update its position using its velocity.
     void update(Tilemap *_map, float time, float deltaTime) override;
@@ -24,4 +23,5 @@ private:
     float vx, vy;
     Entity* owner; // pointer to the entity that fired the projectile
     float damage;
+    float lastAnimationTime = 0.0f;
 };

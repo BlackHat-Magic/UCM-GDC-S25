@@ -1,7 +1,7 @@
 #pragma once
 #include <SDL2/SDL.h>
-#include "../utils/spritesheet.h"
-#include "../utils/tilemap.h"
+#include "utils/spritesheet.h"
+#include "utils/tilemap.h"
 
 class Entity {
 public:
@@ -21,12 +21,19 @@ public:
 
     void setSpriteSheet(Spritesheet* sheet);
     void setSpriteSize(int width, int height);
-    float x, y;
 
-    Spritesheet* spritesheet;
+    virtual void markForDeletion ();
+    virtual bool isMarkedForDeletion () const;
+
+    float x, y;
     int spriteWidth, spriteHeight;
+
+protected:
+    Spritesheet* spritesheet;
     int currentStage;
     int currentAnimation;
     bool flipped;
     int** animations;
+
+    bool markedForDeletion;
 };

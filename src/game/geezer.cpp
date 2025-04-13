@@ -1,21 +1,25 @@
-#include "geezer.h"
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
 #include <iostream>
 
-Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
-               int sprite_height, float x, float y, int** animations,
-               float animation_speed, float movement_speed, Entity* target)
+#include "geezer.h"
+
+Geezer::Geezer(SDL_Renderer* renderer, EntityManager* entityManager,
+            const char* sprite_path, int sprite_width, int sprite_height, float x,
+            float y, int** animations, float animation_speed, float movement_speed,
+            Entity* target)
     : MovementAttackAnimated(renderer, sprite_path, sprite_width, sprite_height,
                 x, y, animations, animation_speed, movement_speed),
+        entityManager(entityManager),
         currentState(G_IDLE),
         prevState(G_IDLE),
         renderer(renderer),
         target(target),
+        
         attackInterval(1.0f),
-        withdrawAttackInterval(2.0f),
         lastAttackTime(0.0f),
+        
         lastPathfindTime(0.0f),
         sightRange(256.0f),
         maxAttackRange(128.0f),
@@ -23,22 +27,24 @@ Geezer::Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width
         idealAttackRange(96.0f),
         idealInner(80.0f),
         minAttackRange(64.0f),
+        
         projectileSpeed(300.0f),
+        
         shotVariance(0.045f),
         posVariance(0.35f),
+        
         gen(rd()) {
     // Set an initial animation if needed.
     setAnimation(0);
     setStage(0);
 }
 
-Geezer::~Geezer() {
-    for (Fireball* fb : projectiles) {
-        delete fb;
-    }
-}
-
 Direction Geezer::control(Tilemap *map, float time, float deltaTime) {
+    if (!target || target->isMarkedForDeletion ()) {
+        currentState = G_IDLE;
+        return NONE;
+    }
+
     // Decide state based on distance to target
     float dist = distanceToTarget();
     
@@ -93,32 +99,6 @@ Direction Geezer::control(Tilemap *map, float time, float deltaTime) {
     // if we can fire, fire
     fireAtTarget(time);
 
-    // Update animation (provided by MovementAttackAnimated)
-    advanceAnimation();
-
-    // update and clean up projectiles
-    const int screenWidth = 640;
-    const int screenHeight = 480;
-    projectiles.erase(std::remove_if(projectiles.begin(), projectiles.end(), [&](Fireball* fb) {
-        fb->update(map, time, deltaTime);
-
-        if (checkFireballCollision (fb)) {
-            Player* playerTarget = dynamic_cast<Player*>(target);
-            if (playerTarget) {
-                playerTarget -> takeDamage (fb ->getDamage ());
-            }
-            delete fb;
-            return true;
-        }
-
-        if (fb->isOffScreen(screenWidth, screenHeight)) {
-            delete fb;
-            return true;
-        }
-
-        return false;
-    }), projectiles.end());
-
     return dir;
 }
 
@@ -165,17 +145,16 @@ void Geezer::fireAtTarget(float time) {
     float vx = std::cos(randomAngle) * projectileSpeed;
     float vy = std::sin(randomAngle) * projectileSpeed;
 
-    // Create a new fireball.
-    Fireball* fb = new Fireball(
-        renderer, 
-        "assets/sprites/fireball.png", 
-        16, 16, 
-        x, y, 
-        vx, vy, 
-        this, 
+    // Create a new fireball in entity manager
+    entityManager->addEntity<Fireball>(
+        renderer,
+        "assets/sprites/fireball.png",
+        16, 16,
+        x, y,
+        vx, vy,
+        this,
         10.0f
     );
-    projectiles.push_back(fb);
 
     lastAttackTime = time;
     attack(time);
@@ -191,33 +170,37 @@ Direction Geezer::moveToDestination() {
     // displacement to target position
     float dx = destinationX - x;
     float dy = destinationY - y;
+    float mag = dx*dx + dy*dy;
 
-    float mag = std::sqrt(dx*dx + dy*dy);
-
-    if (dx > 0.1f) {
-        if (dy > 0.1f) {
-            return DOWN_RIGHT;
-        } else if (dy < -0.1f) {
-            return UP_RIGHT;
-        } else {
-            return RIGHT;
-        }
-    } else if (dx < -0.1f) {
-        if (dy > 0.1f) {
-            return DOWN_LEFT;
-        } else if (dy < -0.1f) {
-            return UP_LEFT;
-        } else {
-            return LEFT;
-        }
-    } else if (dy > 0.1f) {
-        return DOWN;
-    } else if (dy < -0.1f) {
-        return UP;
-    } else {
-        // we're at the destination
+    float threshold = 1.0f;
+    if (mag < threshold) {
         return NONE;
     }
+
+    // Determine direction based on dx, dy (logic is fine)
+    if (std::abs(dx) > std::abs(dy)) { // More horizontal movement
+        if (dx > 0) { // Moving right
+            if (dy > 0.5f * dx) return DOWN_RIGHT;
+            if (dy < -0.5f * dx) return UP_RIGHT;
+            return RIGHT;
+        } else { // Moving left
+            if (dy > -0.5f * dx) return DOWN_LEFT;
+            if (dy < 0.5f * dx) return UP_LEFT;
+            return LEFT;
+        }
+    } else { // More vertical movement (or equal)
+         if (dy > 0) { // Moving down
+            if (dx > 0.5f * dy) return DOWN_RIGHT;
+            if (dx < -0.5f * dy) return DOWN_LEFT;
+            return DOWN;
+        } else { // Moving up
+            if (dx > -0.5f * dy) return UP_RIGHT;
+            if (dx < 0.5f * dy) return UP_LEFT;
+            return UP;
+        }
+    }
+
+    return NONE;
 
     // in the future, we want to avoid getting too close to the player
     // e.g., we're trying to move from one side of circle around player to
@@ -226,17 +209,11 @@ Direction Geezer::moveToDestination() {
     // but this is kinda a distraction, so worry about it later
 }
 
-void Geezer::render(SDL_Renderer* renderer) {
-    // Render the geezer itself
-    // MovementAttackAnimated::render(renderer);
-    Entity::render(renderer);
-
-    // Render each active fireball.
-    for (auto fb : projectiles)
-        fb->render(renderer);
-}
-
 float Geezer::distanceToTarget() const {
+    // float_max if no target
+    if (!target) return std::numeric_limits<float>::max();
+
+    // otherwise self-explanatory
     SDL_Point pt = target->getPosition();
     float dx = static_cast<float>(pt.x) - x;
     float dy = static_cast<float>(pt.y) - y;
@@ -246,6 +223,11 @@ float Geezer::distanceToTarget() const {
 void Geezer::setDestination (float time) {
     // if we're supposed to stand still; don't bother
     if (currentState == G_IDLE || currentState == G_ATTACK) {
+        destinationX = x;
+        destinationY = y;
+        return;
+    }
+    if (!target) {
         return;
     }
 
@@ -253,13 +235,9 @@ void Geezer::setDestination (float time) {
     SDL_Point pt = target->getPosition();
     float ptx = static_cast<float>(pt.x);
     float pty = static_cast<float>(pt.y);
-    
-    // displacement from target to geezer
-    float dx = x - ptx;
-    float dy = y - pty;
 
     // angle from target to geezer
-    float baseAngle = std::atan2(dy, dx);
+    float baseAngle = std::atan2(y - pty, x - ptx);
 
     // Introduce randomness: e.g. up to +/-10deg (approx)
     std::normal_distribution<float> d{baseAngle, posVariance};
@@ -271,32 +249,4 @@ void Geezer::setDestination (float time) {
 
     // set last pathfind time
     lastPathfindTime = time;
-}
-
-bool Geezer::checkFireballCollision (Fireball* fb) {
-    Player* playerTarget = dynamic_cast<Player*>(target);
-    if (!playerTarget) {
-        return false;
-    }
-    if (!playerTarget->isAlive ()) {
-        return false;
-    }
-    std::cout << "checking collision" << std::endl;
-
-    SDL_Rect fireballRect = {
-        static_cast<int>(fb->x), 
-        static_cast<int>(fb->y), 
-        fb->spriteWidth, 
-        fb->spriteHeight
-    };
-    SDL_Rect playerRect = {
-        static_cast<int>(playerTarget->x),
-        static_cast<int>(playerTarget->y),
-        playerTarget->spriteWidth,
-        playerTarget->spriteHeight,
-    };
-
-    bool answer = SDL_HasIntersection (&fireballRect, &playerRect);
-    std::cout << answer << std::endl;
-    return answer;
 }

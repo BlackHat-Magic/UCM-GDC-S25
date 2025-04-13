@@ -1,8 +1,9 @@
 #pragma once
+
 #include "movement_attack_animated.h"
-#include "fireball.h"
 #include "entity.h"
 #include "player.h"
+#include "entity_manager.h"
 #include <vector>
 #include <random>
 
@@ -19,18 +20,15 @@ enum GeezerState {
 class Geezer : public MovementAttackAnimated {
 public:
     // The Geezer takes a pointer to its target (e.g., the player)
-    Geezer(SDL_Renderer* renderer, const char* sprite_path, int sprite_width,
-           int sprite_height, float x, float y, int** animations,
-           float animation_speed, float movement_speed, Entity* target);
-
-    ~Geezer();
+    Geezer(SDL_Renderer* renderer, EntityManager* entityManager,
+            const char* sprite_path, int sprite_width, int sprite_height,
+            float x, float y, int** animations, float animation_speed,
+            float movement_speed, Entity* target);
 
     Direction control(Tilemap *map, float time, float deltaTime) override;
 
-    // Render the enemy and its fireballs
-    void render(SDL_Renderer* renderer);
-
 private:
+    EntityManager* entityManager;
     GeezerState currentState;
     GeezerState prevState;
     SDL_Renderer* renderer;
@@ -43,18 +41,16 @@ private:
 
     // Timing for attacks
     float attackInterval;           // seconds between fireballs
-    float withdrawAttackInterval;   // attack rate when withdrawing
     float lastAttackTime;           // timestamp of the last fired projectile
 
     float lastPathfindTime; // last time it pathfinded for strafing
-    float sightRange;       // dist > 128       -> idle (can't see)
-    float maxAttackRange;   // 80 < dist < 128  -> chase (way too far)
-    float idealOuter;       // 72 < dist < 128  -> pursue (a lil too far)
-    float idealAttackRange; // where the geezer wants to be
-    float idealInner;       // 56 < dist < 72   -> attack (just right)
-    float minAttackRange;   // 48 < dist < 56   -> withdraw (a lil too close)
-                            // dist < 48        -> flee (way too close)
-    
+    float sightRange;       // dist > 256           -> idle (can't see)
+    float maxAttackRange;   // 128  < dist < 256    -> chase (way too far)
+    float idealOuter;       // 112  < dist < 128    -> approach (a lil too far)
+    float idealAttackRange; // 80   < dist < 112    -> attack (just right)
+    float idealInner;       // 64   < dist < 80     -> withdraw (a lil too close)
+    float minAttackRange;   // dist < 64            -> flee (way too close)
+                            
     float projectileSpeed;  // speed of fireballs
                             // should probably be in the fireball class, but eh
     
@@ -73,9 +69,6 @@ private:
     // player
     float posVariance;
 
-    // List of active fireballs fired by this enemy
-    std::vector<Fireball*> projectiles;
-
     // Fire a projectile at the target with some inaccuracy
     void fireAtTarget(float time);
 
@@ -87,6 +80,4 @@ private:
 
     // move to destination while maintaining arc
     Direction moveToDestination ();
-
-    bool checkFireballCollision (Fireball* fb);
 };

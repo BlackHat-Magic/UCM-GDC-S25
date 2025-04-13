@@ -12,17 +12,22 @@ Player::Player(SDL_Renderer* renderer, const InputHandler* input_handler, float 
         int* walk_animation = new int[7]{ 1, 2, 3, 4, 5, 6, -1 };
         int* attack_animation = new int[3]{ 4, 5, -1 };
         
-        int** animations = new int*[4];
-        animations[0] = idle_animation;
-        animations[1] = walk_animation;
-        animations[2] = attack_animation;
-        animations[3] = nullptr;
+        int** player_animations = new int*[4];
+        player_animations[0] = idle_animation;
+        player_animations[1] = walk_animation;
+        player_animations[2] = attack_animation;
+        player_animations[3] = nullptr;
 
-        setAnimations(animations);
+        setAnimations (player_animations);
+        setAnimation (0);
 }
 
 Direction Player::control(Tilemap *_map, float time, float deltaTime) {
     Direction direction = NONE;
+
+    if (!isAlive ()) {
+        return NONE;
+    }
 
     if (input_handler->is_key_pressed(SDL_SCANCODE_UP)) {
         if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
@@ -54,8 +59,18 @@ Direction Player::control(Tilemap *_map, float time, float deltaTime) {
 }
 
 void Player::takeDamage (float amount) {
+    // you can't make someone more dead
+    if (!isAlive ()) {
+        return;
+    }
+
     health -= amount;
     health = std::max (health, 0.0f);
+
+    // maybe do a death animation instead
+    if (health <= 0.0f) {
+        markForDeletion ();
+    }
 }
 
 bool Player::isAlive () const {
