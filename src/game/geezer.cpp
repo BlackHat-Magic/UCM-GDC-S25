@@ -39,19 +39,21 @@ Geezer::Geezer(SDL_Renderer* renderer, EntityManager* entityManager,
     setStage(0);
 }
 
-Direction Geezer::control(Tilemap *map, float time, float deltaTime) {
+void Geezer::control(Tilemap *map, float time, float deltaTime) {
     if (!target || target->isMarkedForDeletion ()) {
         currentState = G_IDLE;
-        return NONE;
+        return;
     }
+
+    // reset each frame
+    vx = 0.0f;
+    vy = 0.0f;
 
     // Decide state based on distance to target
     float dist = distanceToTarget();
-    
-    // update previous state
-    prevState = currentState;
 
     // set current state
+    prevState = currentState;
     if (dist > sightRange) {
         currentState = G_IDLE;
     } else if (dist > maxAttackRange) {
@@ -65,7 +67,6 @@ Direction Geezer::control(Tilemap *map, float time, float deltaTime) {
     } else {
         currentState = G_FLEE;
     }
-
     // if state has changed, we have a new target destination
     if (prevState != currentState) {
         setDestination(time);
@@ -94,7 +95,7 @@ Direction Geezer::control(Tilemap *map, float time, float deltaTime) {
     }
 
     // if we're in a moving state, move toward destination
-    Direction dir = moveToDestination();
+    moveToDestination();
 
     // if we can fire, fire
     fireAtTarget(time);
@@ -161,11 +162,12 @@ void Geezer::fireAtTarget(float time) {
 }
 
 // handles state-specific speeds
-Direction Geezer::moveToDestination() {
+void Geezer::moveToDestination() {
     // don't move if idle or already attacking
     if (currentState == G_IDLE || currentState == G_ATTACK) {
-        return NONE;
+        return;
     }
+    // vx, vy already reset for us
     
     // displacement to target position
     float dx = destinationX - x;
@@ -174,33 +176,11 @@ Direction Geezer::moveToDestination() {
 
     float threshold = 1.0f;
     if (mag < threshold) {
-        return NONE;
+        return;
     }
 
-    // Determine direction based on dx, dy (logic is fine)
-    if (std::abs(dx) > std::abs(dy)) { // More horizontal movement
-        if (dx > 0) { // Moving right
-            if (dy > 0.5f * dx) return DOWN_RIGHT;
-            if (dy < -0.5f * dx) return UP_RIGHT;
-            return RIGHT;
-        } else { // Moving left
-            if (dy > -0.5f * dx) return DOWN_LEFT;
-            if (dy < 0.5f * dx) return UP_LEFT;
-            return LEFT;
-        }
-    } else { // More vertical movement (or equal)
-         if (dy > 0) { // Moving down
-            if (dx > 0.5f * dy) return DOWN_RIGHT;
-            if (dx < -0.5f * dy) return DOWN_LEFT;
-            return DOWN;
-        } else { // Moving up
-            if (dx > -0.5f * dy) return UP_RIGHT;
-            if (dx < 0.5f * dy) return UP_LEFT;
-            return UP;
-        }
-    }
-
-    return NONE;
+    vx = dx / mag * movementSpeed;
+    vy = dx / mag * movementSpeed;
 
     // in the future, we want to avoid getting too close to the player
     // e.g., we're trying to move from one side of circle around player to

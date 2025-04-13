@@ -22,40 +22,30 @@ Player::Player(SDL_Renderer* renderer, const InputHandler* input_handler, float 
         setAnimation (0);
 }
 
-Direction Player::control(Tilemap *_map, float time, float deltaTime) {
-    Direction direction = NONE;
-
+void Player::control(Tilemap *_map, float time, float deltaTime) {
     if (!isAlive ()) {
-        return NONE;
+        return;
     }
 
-    if (input_handler->is_key_pressed(SDL_SCANCODE_UP)) {
-        if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
-            direction = UP_LEFT;
-        } else if (input_handler->is_key_pressed(SDL_SCANCODE_RIGHT)) {
-            direction = UP_RIGHT;
-        } else {
-            direction = UP;
-        }
-    } else if (input_handler->is_key_pressed(SDL_SCANCODE_DOWN)) {
-        if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
-            direction = DOWN_LEFT;
-        } else if (input_handler->is_key_pressed(SDL_SCANCODE_RIGHT)) {
-            direction = DOWN_RIGHT;
-        } else {
-            direction = DOWN;
-        }
-    } else if (input_handler->is_key_pressed(SDL_SCANCODE_LEFT)) {
-        direction = LEFT;
-    } else if (input_handler->is_key_pressed(SDL_SCANCODE_RIGHT)) {
-        direction = RIGHT;
-    } 
+    // reset each frame
+    vx = 0.0f;
+    vy = 0.0f;
 
-    if (input_handler->is_mouse_button_pressed(SDL_BUTTON_LEFT)) {
-        attack(time);
+    // grab input
+    if (input_handler->is_key_pressed (SDL_SCANCODE_LEFT)) vx -= movementSpeed;
+    if (input_handler->is_key_pressed (SDL_SCANCODE_RIGHT)) vx += movementSpeed;
+    if (input_handler->is_key_pressed (SDL_SCANCODE_UP)) vy -= movementSpeed;
+    if (input_handler->is_key_pressed (SDL_SCANCODE_DOWN)) vy += movementSpeed;
+
+    // normalize
+    float lenSq = vx*vx + vy*vy;
+    if (lenSq > movementSpeed * movementSpeed) {
+        float len std::sqrt (lenSq);
+        vx = (vx / len) * movementSpeed;
+        vy = (vy / len) * movementSpeed;
     }
 
-    return direction;
+    if (input_handler->is_mouse_button_pressed (SDL_BUTTON_LEFT)) attack (time);
 }
 
 void Player::takeDamage (float amount) {

@@ -25,7 +25,7 @@ public:
             float x, float y, int** animations, float animation_speed,
             float movement_speed, Entity* target);
 
-    Direction control(Tilemap *map, float time, float deltaTime) override;
+    void control(Tilemap *map, float time, float deltaTime) override;
 
 private:
     EntityManager* entityManager;
@@ -79,5 +79,5 @@ private:
     void setDestination (float time);
 
     // move to destination while maintaining arc
-    Direction moveToDestination ();
+    void moveToDestination ();
 };

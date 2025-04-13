@@ -13,7 +13,7 @@ MovementAttackAnimated::MovementAttackAnimated(SDL_Renderer* renderer, const cha
 
 void MovementAttackAnimated::update(Tilemap *map, float time, float deltaTime) {
     Direction newDirection = control(map, time, deltaTime);
-
+    // did this frame take longer than the entire animation?
     if (time - lastAnimationTime >= animationSpeed) {
         lastAnimationTime = time;
         if (advanceAnimation()) {
@@ -25,6 +25,7 @@ void MovementAttackAnimated::update(Tilemap *map, float time, float deltaTime) {
         }
     }
 
+    // flipping logic
     if (newDirection != direction) {
         setStage(0);
         if (newDirection != NONE) {
@@ -40,46 +41,8 @@ void MovementAttackAnimated::update(Tilemap *map, float time, float deltaTime) {
         }
     }
 
-    direction = newDirection;
-
-    float dx = 0.0f;
-    float dy = 0.0f;
-
-    switch (direction) {
-        case UP:
-            dy = -movementSpeed * deltaTime;
-            break;
-        case DOWN:
-            dy = movementSpeed * deltaTime;
-            break;
-        case LEFT:
-            dx = -movementSpeed * deltaTime;
-            break;
-        case RIGHT:
-            dx = movementSpeed * deltaTime;
-            break;
-        case UP_LEFT:
-            dx = -movementSpeed * deltaTime / std::sqrt(2);
-            dy = -movementSpeed * deltaTime / std::sqrt(2);
-            break;
-        case UP_RIGHT:
-            dx = movementSpeed * deltaTime / std::sqrt(2);
-            dy = -movementSpeed * deltaTime / std::sqrt(2);
-            break;
-        case DOWN_LEFT:
-            dx = -movementSpeed * deltaTime / std::sqrt(2);
-            dy = movementSpeed * deltaTime / std::sqrt(2);
-            break;
-        case DOWN_RIGHT:
-            dx = movementSpeed * deltaTime / std::sqrt(2);
-            dy = movementSpeed * deltaTime / std::sqrt(2);
-            break;
-        default:
-            break;
-    }
-
-    float proposedX = x + dx;
-    float proposedY = y + dy;
+    float proposedX = x + vx * deltaTime;
+    float proposedY = y + vy * deltaTime;
 
     if (map->intersects_rect(proposedX + spriteWidth / 2, proposedY + spriteWidth / 2, spriteWidth, spriteHeight) == NONE) {
         x = proposedX;

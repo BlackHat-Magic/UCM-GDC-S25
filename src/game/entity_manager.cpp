@@ -66,43 +66,46 @@ Player* EntityManager::getPlayer() const {
 }
 
 void EntityManager::handleCollisions () {
-    Player* player = getPlayer ();
-    if (!player || !player->isAlive ()) {
-        // physics don't really matter if the player is dead
-        return;
-    }
+    for (size_t i = 0; i < entities.size (); i++) {
+        Entity* entityA = entities[i].get ();
 
-    SDL_Rect playerRect = {
-        static_cast<int>(player->x),
-        static_cast<int>(player->y),
-        player->spriteWidth,
-        player->spriteHeight,
-    };
+        // skip nonexistent/inactive
+        if (!entityA || entityA->isMarkedForDeletion ()) continue;
 
-    for (auto& entity: entities) {
-        // only check active fireballs
-        if (!entity || entity->isMarkedForDeletion ()) {
-            continue;
-        }
-        // again, only active fireballs
-        // extend to others in the future
-        Fireball* fb = dynamic_cast<Fireball*>(entity.get());
-        if(!fb) {
-            continue;
-        }
-        // ignore fireballs owned by the player for now
-        if (fb->getOwner () == player) {
-            continue;
-        }
-        SDL_Rect fireballRect = {
-            static_cast<int>(fb->x),
-            static_cast<int>(fb->y),
-            fb->spriteWidth,
-            fb->spriteHeight
-        };
-        if(SDL_HasIntersection(&fireballRect, &playerRect)) {
-            player->takeDamage (fb->getDamage ());
-            fb->markForDeletion ();
+        // see what it collides with
+        for (size_t j = i + 1; j < entities.size(); ++j) {
+            Entity* entityB = entities[j].get();
+            if (!entityB || entityB->isMarkedForDeletion()) continue;
+
+            // --- Layer/Mask Check ---
+            if (!checkCollision(entityA->mask, entityB->layer) &&
+                !checkCollision(entityB->mask, entityA->layer)) {
+                continue; // These entities don't interact
+            }
+
+            // --- Narrowphase Collision Check (e.g., AABB) ---
+            SDL_Rect rectA = { /* get rect for A */ };
+            SDL_Rect rectB = { /* get rect for B */ };
+
+            if (SDL_HasIntersection(&rectA, &rectB)) {
+                // --- Handle Collision Response ---
+                // This is where specific logic goes (damage, effects, etc.)
+                // Example: Player vs Enemy Fireball
+                Player* player = dynamic_cast<Player*>(entityA);
+                Fireball* fb = dynamic_cast<Fireball*>(entityB);
+                if (player && fb && fb->getOwner() != player) {
+                     player->takeDamage(fb->getDamage());
+                     fb->markForDeletion();
+                }
+                // Handle the other way around (A=Fireball, B=Player)
+                player = dynamic_cast<Player*>(entityB);
+                fb = dynamic_cast<Fireball*>(entityA);
+                 if (player && fb && fb->getOwner() != player) {
+                     player->takeDamage(fb->getDamage());
+                     fb->markForDeletion();
+                }
+                // Add other interaction types (Enemy vs Player, etc.)
+            }
         }
     }
 }

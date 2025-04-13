@@ -8,7 +8,7 @@ class Player : public MovementAttackAnimated {
 public:
     Player(SDL_Renderer* renderer, const InputHandler* input_handler, float x, float y, float initial_health = 100.0f);
 
-    Direction control(Tilemap *_map, float time, float deltaTime) override;
+    void control(Tilemap *_map, float time, float deltaTime) override;
     void takeDamage (float amount);
     bool isAlive () const;
     float getHealth () const;

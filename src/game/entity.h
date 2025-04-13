@@ -26,6 +26,7 @@ public:
     virtual bool isMarkedForDeletion () const;
 
     float x, y;
+    float vx, vy;
     int spriteWidth, spriteHeight;
 
 protected:
