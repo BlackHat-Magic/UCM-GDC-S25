@@ -8,6 +8,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <sstream>
 #include "game/player.h"
 #include "game/geezer.h"
 
@@ -15,6 +16,7 @@ enum class GameState {
 	MAIN_MENU,
 	PLAYING,
 	PAUSED,
+	GAME_OVER,
 	QUIT
 };
 
@@ -93,7 +95,19 @@ int main(int argc, char* argv[]) {
 	// menu font
 	TTF_Font* menuFont = TTF_OpenFont ("assets/fonts/press_start/prstart.ttf", 28);
 	if (!menuFont) {
-		std::cerr << "Font could not initialize: " << TTF_GetError () << std::endl;
+		std::cerr << "Menu font could not initialize: " << TTF_GetError () << std::endl;
+		AudioSystem::quit ();
+		SDL_DestroyRenderer (renderer);
+		SDL_DestroyWindow (window);
+		TTF_Quit ();
+		IMG_Quit ();
+		SDL_Quit ();
+		return 1;
+	}
+
+	TTF_Font* hudFont = TTF_OpenFont ("assets/fonts/press_start/prstart.ttf", 14);
+	if (!hudFont) {
+		std::cerr << "HUD font could not initialize: " << TTF_GetError () << std:: endl;
 		AudioSystem::quit ();
 		SDL_DestroyRenderer (renderer);
 		SDL_DestroyWindow (window);
@@ -107,33 +121,39 @@ int main(int argc, char* argv[]) {
 	SDL_Color white {255, 255, 255, 255};
 	SDL_Color gray = {150, 150, 150, 255};
 	SDL_Texture* startTexture = renderText (renderer, menuFont, "Start Game", white);
-	SDL_Texture* quitTexture = renderText (renderer, menuFont, "Quit", white);
+	SDL_Texture* desktopTexture = renderText (renderer, menuFont, "Quit", white);
 	SDL_Texture* startTextureHover = renderText (renderer, menuFont, "Start Game", gray);
-	SDL_Texture* quitTextureHover = renderText (renderer, menuFont, "Quit", gray);
-
+	SDL_Texture* desktopTextureHover = renderText (renderer, menuFont, "Quit to Desktop", gray);
 	// texture dimensions for positioning
-	int startW, startH, quitW, quitH;
+	int startW, startH, desktopW, desktopH;
 	SDL_QueryTexture (startTexture, NULL, NULL, &startW, &startH);
-	SDL_QueryTexture (quitTexture, NULL, NULL, &quitW, &quitH);
+	SDL_QueryTexture (desktopTexture, NULL, NULL, &desktopW, &desktopH);
 	SDL_Rect startButtonRect = {640 / 2 - startW / 2, 200, startW, startH};
-	SDL_Rect quitButtonRect = {640 / 2 - quitW / 2, 260, quitW, quitH};
+	SDL_Rect desktopButtonRect = {640 / 2 - desktopW / 2, 260, desktopW, desktopH};
 
-	// same for pause menu
+	// pause menu
 	SDL_Texture* continueTexture = renderText (renderer, menuFont, "Continue", white);
 	SDL_Texture* menuTexture = renderText (renderer, menuFont, "Quit to Menu", white);
-	SDL_Texture* desktopTexture = renderText (renderer, menuFont, "Quit to Desktop", white);
 	SDL_Texture* continueTextureHover = renderText (renderer, menuFont, "Continue", gray);
 	SDL_Texture* menuTextureHover = renderText (renderer, menuFont, "Quit to Menu", gray);
-	SDL_Texture* desktopTextureHover = renderText (renderer, menuFont, "Quit to Desktop", gray);
-
-	// agane
-	int continueW, continueH, menuW, menuH, desktopW, desktopH;
+	// desktop button is reused
+	int continueW, continueH, menuW, menuH;
 	SDL_QueryTexture (continueTexture, NULL, NULL, &continueW, &continueH);
 	SDL_QueryTexture (menuTexture, NULL, NULL, &menuW, &menuH);
-	SDL_QueryTexture (desktopTexture, NULL, NULL, &desktopW, &desktopH);
 	SDL_Rect continueButtonRect = {640 / 2 - continueW / 2, 140, continueW, continueH};
 	SDL_Rect menuButtonRect = {640 / 2 - menuW / 2, 200, menuW, menuH};
-	SDL_Rect desktopButtonRect = {640 / 2 - desktopW / 2, 260, desktopW, desktopH};
+	// desktop button is reused
+
+	// game over
+	SDL_Texture* gameOverTexture = renderText (renderer, menuFont, "GAME OVER", {255, 0, 0, 255});
+	SDL_Texture* restartTexture = renderText (renderer, menuFont, "Restart", white);
+	SDL_Texture* restartTextureHover = renderText (renderer, menuFont, "Restart", gray);
+	// quit to menu, desktop reused from above
+	int gameOverW, gameOverH, restartW, restartH;
+	SDL_QueryTexture (gameOverTexture, NULL, NULL, &gameOverW, &gameOverH);
+	SDL_QueryTexture (restartTexture, NULL, NULL, &restartW, &restartH);
+	SDL_Rect gameOverRect = {640 / 2 - gameOverW / 2, 80, gameOverW, gameOverH};
+	SDL_Rect restartButtonRect = {640 / 2 - restartW / 2, 140, restartW, restartH};
 
 	// menu background texture eventually
 	// SDL_Texture* menuBackground = IMG_LoadTexture (renderer, "assets/ui/menu_background.png");
@@ -163,7 +183,7 @@ int main(int argc, char* argv[]) {
 	bool mousePressed = false;
 	
 	menu_music.play(-1);
-	menu_music.setVolume(50);
+	menu_music.setVolume(10);
 
 	// game loop
 	while (gameRunning) {
@@ -183,7 +203,7 @@ int main(int argc, char* argv[]) {
 				if (currentState == GameState::PLAYING) {
 					currentState = GameState::PAUSED;
 					level_music.setVolume (10);
-				} else if (currentState == GameState::MAIN_MENU) {
+				} else if (currentState == GameState::MAIN_MENU || currentState == GameState::GAME_OVER) {
 					gameRunning = false;
 				} else if (currentState == GameState::PAUSED) {
 					currentState = GameState::PLAYING;
@@ -225,7 +245,7 @@ int main(int argc, char* argv[]) {
 	case GameState::MAIN_MENU: {
 		SDL_Point mousePoint = {mouseX, mouseY};
 		bool onStart = SDL_PointInRect (&mousePoint, &startButtonRect);
-		bool onQuit = SDL_PointInRect (&mousePoint, &quitButtonRect);
+		bool onQuit = SDL_PointInRect (&mousePoint, &desktopButtonRect);
 
 		// click main menu buttons
 		if (mousePressed) {
@@ -233,7 +253,7 @@ int main(int argc, char* argv[]) {
 				currentState = GameState::PLAYING;
 				menu_music.pause ();
 				level_music.play (-1);
-				level_music.setVolume (50);
+				level_music.setVolume (10);
 
 				player = new Player (renderer, &handler, 300, 300);
 
@@ -261,7 +281,7 @@ int main(int argc, char* argv[]) {
 		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
 		SDL_RenderCopy (renderer, onStart ? startTextureHover : startTexture, NULL, &startButtonRect);
-		SDL_RenderCopy (renderer, onQuit ? quitTextureHover : quitTexture, NULL, &quitButtonRect);
+		SDL_RenderCopy (renderer, onQuit ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
 	} break;
 
 	case GameState::PAUSED: {
@@ -273,7 +293,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_BLEND);
-		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 150);
+		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 128);
 		SDL_Rect overlayRect = {0, 0, 640, 480};
 		SDL_RenderFillRect (renderer, &overlayRect);
 		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_NONE);
@@ -318,13 +338,74 @@ int main(int argc, char* argv[]) {
 			break;
 		}
 
+		// update entities
 		player->update (&trapdoor_map, time, deltaTime);
 		geezer->update (&trapdoor_map, time, deltaTime);
 
+		// check for player death
+		if (!player->isAlive ()) {
+			currentState = GameState::GAME_OVER;
+			level_music.stop ();
+			break;
+		}
+
+		// render game
 		surface_map.draw (renderer, 0, 0);
 		trapdoor_map.draw (renderer, 0, 0);
 		player->render (renderer);
 		geezer-> render (renderer);
+
+		// render HUD
+		std::stringstream healthText;
+		healthText << "Health: " << static_cast<int>(player->getHealth()) << " / " << static_cast<int>(player->getMaxHealth());
+		SDL_Texture* healthTexture = renderText (renderer, hudFont, healthText.str(), white);
+		if (healthTexture) {
+			int healthW, healthH;
+			SDL_QueryTexture (healthTexture, NULL, NULL, &healthW, &healthH);
+			SDL_Rect healthRect = {10, 10, healthW, healthH};
+			SDL_RenderCopy (renderer, healthTexture, NULL, &healthRect);
+			SDL_DestroyTexture (healthTexture);
+		}
+	} break;
+
+	case GameState::GAME_OVER: {
+		surface_map.draw (renderer, 0, 0);
+		trapdoor_map.draw (renderer, 0, 0);
+		if (player) {
+			player -> render (renderer);
+		}
+		if (geezer) {
+			geezer -> render (renderer);
+		}
+
+		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_BLEND);
+		SDL_SetRenderDrawColor (renderer, 20, 0, 0, 160);
+		SDL_Rect overlayRect = {0, 0, 640, 480};
+		SDL_RenderFillRect (renderer, &overlayRect);
+		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_NONE);
+		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
+
+		SDL_Point mousePoint = {mouseX, mouseY};
+		bool onRestart = SDL_PointInRect (&mousePoint, &restartButtonRect);
+		bool onMenu = SDL_PointInRect (&mousePoint, &menuButtonRect);
+		bool onDesktop = SDL_PointInRect (&mousePoint, &desktopButtonRect);
+
+		SDL_RenderCopy (renderer, gameOverTexture, NULL, &gameOverRect);
+		SDL_RenderCopy (renderer, onRestart ? restartTextureHover : restartTexture, NULL, &restartButtonRect);
+		SDL_RenderCopy (renderer, onMenu ? menuTextureHover : menuTexture, NULL, &menuButtonRect);
+		SDL_RenderCopy (renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
+
+		if (mousePressed) {
+			if (onRestart) {
+				// uhm
+			} else if (onMenu) {
+				currentState = GameState::MAIN_MENU;
+				menu_music.play(-1);
+				mousePressed = false;
+			} else if (onDesktop) {
+				gameRunning = false;
+			}
+		}
 	} break;
 
 	case GameState::QUIT:
@@ -341,15 +422,16 @@ delete[] collidables;
 
 SDL_DestroyTexture(startTexture);
 SDL_DestroyTexture(startTextureHover);
-SDL_DestroyTexture(quitTexture);
-SDL_DestroyTexture(quitTextureHover);
+SDL_DestroyTexture(desktopTexture);
+SDL_DestroyTexture(desktopTextureHover);
 
 SDL_DestroyTexture(continueTexture);
 SDL_DestroyTexture(continueTextureHover);
 SDL_DestroyTexture(menuTexture);
 SDL_DestroyTexture(menuTextureHover);
-SDL_DestroyTexture(desktopTexture);
-SDL_DestroyTexture(desktopTextureHover);
+
+SDL_DestroyTexture (gameOverTexture);
+SDL_DestroyTexture (restartTexture);
 
 AudioSystem::quit ();
 SDL_DestroyRenderer (renderer);
