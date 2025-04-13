@@ -37,6 +37,9 @@ void Tilemap::setTile(int x, int y, int tile_index) {
             if (tile_index == tiles_with_collider[i]) {
                 int index = y * map_width + x;
                 collider[index / 64] |= (1LL << (index % 64));
+            } else {
+                int index = y * map_width + x;
+                collider[index / 64] &= ~(1LL << (index % 64));
             }
         }
     }
