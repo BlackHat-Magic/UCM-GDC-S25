@@ -1,16 +1,22 @@
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#include <SDL2/SDL_ttf.h>
-#include "utils/spritesheet.h"
-#include "utils/audio.h"
-#include "utils/tilemap.h"
-#include "utils/input.h"
 #include <iostream>
 #include <vector>
 #include <string>
 #include <sstream>
+#include <algorithm>
+#include <limits>
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
+
+#include "utils/spritesheet.h"
+#include "utils/audio.h"
+#include "utils/tilemap.h"
+#include "utils/input.h"
+
 #include "game/player.h"
 #include "game/geezer.h"
+#include "game/entity_manager.h"
 
 enum class GameState {
 	MAIN_MENU,
@@ -121,7 +127,7 @@ int main(int argc, char* argv[]) {
 	SDL_Color white {255, 255, 255, 255};
 	SDL_Color gray = {150, 150, 150, 255};
 	SDL_Texture* startTexture = renderText (renderer, menuFont, "Start Game", white);
-	SDL_Texture* desktopTexture = renderText (renderer, menuFont, "Quit", white);
+	SDL_Texture* desktopTexture = renderText (renderer, menuFont, "Quit to Desktop", white);
 	SDL_Texture* startTextureHover = renderText (renderer, menuFont, "Start Game", gray);
 	SDL_Texture* desktopTextureHover = renderText (renderer, menuFont, "Quit to Desktop", gray);
 	// texture dimensions for positioning
@@ -158,15 +164,13 @@ int main(int argc, char* argv[]) {
 	// menu background texture eventually
 	// SDL_Texture* menuBackground = IMG_LoadTexture (renderer, "assets/ui/menu_background.png");
 
+	EntityManager entityManager (renderer);
+	entityManager.setScreenDimensions (640, 480);
+
 	// load music, initialzie input handler
 	MusicTrack menu_music("assets/audio/patient_rituals.mp3");
 	MusicTrack level_music("assets/audio/level_theme.mp3");
 	InputHandler handler;
-
-	// entities are initialized as empty
-	Player* player = nullptr;
-	Geezer* geezer = nullptr;
-	int** geezerAnimations = nullptr;
 
 	// load tileset and map once
 	Spritesheet sheet(renderer, "assets/tilesets/Dungeon_16x16_asset_pack/tileset.png", 16, 16);
@@ -240,34 +244,66 @@ int main(int argc, char* argv[]) {
 
 	SDL_RenderClear (renderer);
 
+	SDL_Point mousePoint = {mouseX, mouseY};
+	bool onStart = SDL_PointInRect (&mousePoint, &startButtonRect);
+	bool onDesktop = SDL_PointInRect (&mousePoint, &desktopButtonRect);
+	bool onContinue = SDL_PointInRect (&mousePoint, &continueButtonRect);
+	bool onMenu = SDL_PointInRect (&mousePoint, &menuButtonRect);
+	bool onRestart = SDL_PointInRect (&mousePoint, &restartButtonRect);
+
+
+	SDL_Rect overlayRect = {0, 0, 640, 480};
+
 	switch (currentState) {
 	// main menu case
 	case GameState::MAIN_MENU: {
-		SDL_Point mousePoint = {mouseX, mouseY};
-		bool onStart = SDL_PointInRect (&mousePoint, &startButtonRect);
-		bool onQuit = SDL_PointInRect (&mousePoint, &desktopButtonRect);
-
 		// click main menu buttons
 		if (mousePressed) {
 			if (onStart) {
 				currentState = GameState::PLAYING;
 				menu_music.pause ();
 				level_music.play (-1);
-				level_music.setVolume (10);
+				level_music.setVolume (50);
 
-				player = new Player (renderer, &handler, 300, 300);
+				entityManager.clearAll ();
 
-				// Create geezer animations
-				geezerAnimations = new int*[4];
-				geezerAnimations[0] = new int[2]{0, -1};
-				geezerAnimations[1] = new int[2]{0, -1};
-				geezerAnimations[2] = new int[2]{0, -1};
+				Player* playerPtr = entityManager.addEntity<Player>(
+					renderer, 
+					&handler, 
+					320, 400, 
+					100.0f
+				);
+
+				// Define Geezer animations (can be loaded from config later)
+				int* geezer_idle = new int[2]{0, -1};
+				int* geezer_walk = new int[2]{0, -1};
+				int* geezer_atk = new int[2]{0, -1};
+				int** geezerAnimations = new int*[4];
+				geezerAnimations[0] = geezer_idle;
+				geezerAnimations[1] = geezer_walk;
+				geezerAnimations[2] = geezer_atk;
 				geezerAnimations[3] = nullptr;
 				// TODO: Geezer Animations
+				if (playerPtr) {
+					entityManager.addEntity<Geezer>(
+						renderer,
+						&entityManager,
+						"assets/sprites/geezer.png",
+						24, 24,
+						320, 100,
+						geezerAnimations,
+						0.15f, 120.0f,
+						playerPtr
+					);
+				} else {
+					std::cerr << "Player failed to initialize." << std::endl;
+					currentState = GameState::MAIN_MENU;
+					level_music.stop ();
+					menu_music.play (-1);
+				}
 
-				geezer = new Geezer (renderer, "assets/sprites/geezer.png", 24, 24, 300, 150, geezerAnimations, 0.1f, 150.0f, player);
 				mousePressed = false;
-			} else if (onQuit) {
+			} else if (onDesktop) {
 				gameRunning = false;
 			}
 		}
@@ -281,27 +317,19 @@ int main(int argc, char* argv[]) {
 		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
 		SDL_RenderCopy (renderer, onStart ? startTextureHover : startTexture, NULL, &startButtonRect);
-		SDL_RenderCopy (renderer, onQuit ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
+		SDL_RenderCopy (renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
 	} break;
 
 	case GameState::PAUSED: {
-		if (player && geezer) {
-			surface_map.draw (renderer, 0, 0);
-			trapdoor_map.draw (renderer, 0, 0);
-			player->render(renderer);
-			geezer->render(renderer);
-		}
+		surface_map.draw (renderer, 0, 0);
+		trapdoor_map.draw (renderer, 0, 0);
+		entityManager.render ();
 
 		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_BLEND);
 		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 128);
-		SDL_Rect overlayRect = {0, 0, 640, 480};
 		SDL_RenderFillRect (renderer, &overlayRect);
 		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_NONE);
 		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
-		SDL_Point mousePoint = {mouseX, mouseY};
-		bool onContinue = SDL_PointInRect (&mousePoint, &continueButtonRect);
-		bool onMenu = SDL_PointInRect (&mousePoint, &menuButtonRect);
-		bool onDesktop = SDL_PointInRect (&mousePoint, &desktopButtonRect);
 
 		// click pause buttons
 		if (mousePressed) {
@@ -311,11 +339,10 @@ int main(int argc, char* argv[]) {
 				mousePressed = false;
 			} else if (onMenu) {
 				currentState = GameState::MAIN_MENU;
-				delete player; player = nullptr;
-				delete geezer; geezer = nullptr;
-				mousePressed = false;
-				level_music.pause();
+				entityManager.clearAll ();
+				level_music.stop ();
 				menu_music.play(-1);
+				mousePressed = false;
 			} else if (onDesktop) {
 				gameRunning = false;
 			}
@@ -327,33 +354,21 @@ int main(int argc, char* argv[]) {
 	} break;
 
 	case GameState::PLAYING: {
-		if (!player) {
-			std::cerr << "Player failed to initialize." << std::endl;
-			currentState = GameState::MAIN_MENU;
-			break;
-		}
-		if (!geezer) {
-			std::cerr << "Geezer failed to initialize." << std::endl;
-			currentState = GameState::MAIN_MENU;
-			break;
-		}
+		entityManager.update (&trapdoor_map, time, deltaTime);
+		entityManager.cleanupEntities ();
 
-		// update entities
-		player->update (&trapdoor_map, time, deltaTime);
-		geezer->update (&trapdoor_map, time, deltaTime);
-
-		// check for player death
-		if (!player->isAlive ()) {
+		Player* player= entityManager.getPlayer ();
+		if (!player || !player->isAlive ()) {
 			currentState = GameState::GAME_OVER;
 			level_music.stop ();
+
 			break;
 		}
 
 		// render game
 		surface_map.draw (renderer, 0, 0);
 		trapdoor_map.draw (renderer, 0, 0);
-		player->render (renderer);
-		geezer-> render (renderer);
+		entityManager.render ();
 
 		// render HUD
 		std::stringstream healthText;
@@ -371,41 +386,69 @@ int main(int argc, char* argv[]) {
 	case GameState::GAME_OVER: {
 		surface_map.draw (renderer, 0, 0);
 		trapdoor_map.draw (renderer, 0, 0);
-		if (player) {
-			player -> render (renderer);
-		}
-		if (geezer) {
-			geezer -> render (renderer);
-		}
+		entityManager.render ();
 
 		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_BLEND);
 		SDL_SetRenderDrawColor (renderer, 20, 0, 0, 160);
-		SDL_Rect overlayRect = {0, 0, 640, 480};
 		SDL_RenderFillRect (renderer, &overlayRect);
 		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_NONE);
 		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
-		SDL_Point mousePoint = {mouseX, mouseY};
-		bool onRestart = SDL_PointInRect (&mousePoint, &restartButtonRect);
-		bool onMenu = SDL_PointInRect (&mousePoint, &menuButtonRect);
-		bool onDesktop = SDL_PointInRect (&mousePoint, &desktopButtonRect);
-
-		SDL_RenderCopy (renderer, gameOverTexture, NULL, &gameOverRect);
-		SDL_RenderCopy (renderer, onRestart ? restartTextureHover : restartTexture, NULL, &restartButtonRect);
-		SDL_RenderCopy (renderer, onMenu ? menuTextureHover : menuTexture, NULL, &menuButtonRect);
-		SDL_RenderCopy (renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
-
 		if (mousePressed) {
 			if (onRestart) {
-				// uhm
+				currentState = GameState::PLAYING;
+				level_music.play(-1);
+				level_music.setVolume (50);
+
+				entityManager.clearAll ();
+
+				Player* playerPtr = entityManager.addEntity<Player>(
+					renderer, 
+					&handler, 
+					320, 400, 
+					100.0f
+				);
+
+				// Define Geezer animations (can be loaded from config later)
+				int* geezer_idle = new int[2]{0, -1};
+				int* geezer_walk = new int[2]{0, -1};
+				int* geezer_atk = new int[2]{0, -1};
+				int** geezerAnimations = new int*[4];
+				geezerAnimations[0] = geezer_idle;
+				geezerAnimations[1] = geezer_walk;
+				geezerAnimations[2] = geezer_atk;
+				geezerAnimations[3] = nullptr;
+				// TODO: Geezer Animations
+				if (playerPtr) {
+					entityManager.addEntity<Geezer>(
+						renderer,
+						&entityManager,
+						"assets/sprites/geezer.png",
+						24, 24,
+						320, 100,
+						geezerAnimations,
+						0.15f, 120.0f,
+						playerPtr
+					);
+				} else {
+					std::cerr << "Player failed to initialize." << std::endl;
+					currentState = GameState::MAIN_MENU;
+					level_music.stop ();
+					menu_music.play (-1);
+				}
 			} else if (onMenu) {
 				currentState = GameState::MAIN_MENU;
+				entityManager.clearAll ();
 				menu_music.play(-1);
 				mousePressed = false;
 			} else if (onDesktop) {
 				gameRunning = false;
 			}
 		}
+		SDL_RenderCopy (renderer, gameOverTexture, NULL, &gameOverRect);
+		SDL_RenderCopy (renderer, onRestart ? restartTextureHover : restartTexture, NULL, &restartButtonRect);
+		SDL_RenderCopy (renderer, onMenu ? menuTextureHover : menuTexture, NULL, &menuButtonRect);
+		SDL_RenderCopy (renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
 	} break;
 
 	case GameState::QUIT:
@@ -416,8 +459,7 @@ int main(int argc, char* argv[]) {
 	SDL_RenderPresent (renderer);
 }
 
-delete player;
-delete geezer;
+entityManager.clearAll ();
 delete[] collidables;
 
 SDL_DestroyTexture(startTexture);
@@ -433,6 +475,8 @@ SDL_DestroyTexture(menuTextureHover);
 SDL_DestroyTexture (gameOverTexture);
 SDL_DestroyTexture (restartTexture);
 
+TTF_CloseFont(menuFont);
+TTF_CloseFont(hudFont);
 AudioSystem::quit ();
 SDL_DestroyRenderer (renderer);
 SDL_DestroyWindow(window);

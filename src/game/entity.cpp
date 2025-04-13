@@ -10,13 +10,19 @@ Entity::Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width
         flipped(false), 
         currentStage(0), 
         currentAnimation(0),
-        animations(animations) {
-            spritesheet = new Spritesheet(
-                renderer, 
-                sprite_path, 
-                sprite_width, 
-                sprite_height
-            );
+        animations(animations),
+        markedForDeletion (false)
+        {
+            if (sprite_path) {
+                spritesheet = new Spritesheet(
+                    renderer, 
+                    sprite_path, 
+                    sprite_width, 
+                    sprite_height
+                );
+            } else {
+                spritesheet = nullptr;
+            }
         }
 
 Entity::~Entity() {
@@ -32,7 +38,6 @@ Entity::~Entity() {
 
 void Entity::setAnimations(int** new_animations) {
     if (animations) {
-        // I am not a fan but ig it works
         for (int i = 0; animations[i] != nullptr; ++i) {
             delete[] animations[i];  // Free each animation track (int*)
         }
@@ -43,6 +48,15 @@ void Entity::setAnimations(int** new_animations) {
 
 void Entity::render(SDL_Renderer* renderer) {
     if (!spritesheet || !animations || !animations[currentAnimation]) return;
+
+    // make sure we don't overflow animation stages
+    int stageCount = 0;
+    while (animations[currentAnimation][stageCount] >= 0) {
+        stageCount++;
+    }
+    if (currentStage >= stageCount) {
+        currentStage = 0;
+    }
 
     int sprite_index = animations[currentAnimation][currentStage];
     if (sprite_index < 0) return;
@@ -62,12 +76,43 @@ void Entity::setPosition(int new_x, int new_y) {
 }
 
 void Entity::setAnimation(int animation_index) {
-    currentAnimation = animation_index;
-    currentStage = 0;
+    // bounds check
+    int count = 0;
+    if(animations) {
+        while (animations[count] != nullptr) {
+            count++;
+        }
+    }
+    if (animation_index >= 0 && animation_index < count) {
+        currentAnimation = animation_index;
+        currentStage = 0;
+    } else {
+        // either we have no animations or they are defining out of bounds
+        currentAnimation = 0;
+        currentStage = 0;
+    }
 }
 
 void Entity::setStage(int stage_index) {
-    currentStage = stage_index;
+    // if no anumations, don't bother
+    if (!animations) {
+        return;
+    }
+    if (!animations[currentAnimation]) {
+        return;
+    }
+
+    // bounds check
+    int stageCount = 0;
+    while (animations[currentAnimation][stageCount] >= 0) {
+        stageCount++;
+    }
+    if (stage_index >= 0 && stage_index < stageCount) {
+        currentStage = stage_index;
+    } else {
+        // out of bounds
+        // currentStage = 0;
+    }
 }
 
 void Entity::setFlipped(bool flip) {
@@ -80,10 +125,10 @@ bool Entity::advanceAnimation() {
 
     ++currentStage;
     if (animations[currentAnimation][currentStage] < 0) {
-        currentStage = 0;
+        currentStage = 0; // loop
         return true;
     }
-    return false;
+    return false; //animation is finished
 }
 
 void Entity::setSpriteSheet(Spritesheet* sheet) {
@@ -96,4 +141,11 @@ void Entity::setSpriteSheet(Spritesheet* sheet) {
 void Entity::setSpriteSize(int width, int height) {
     spriteWidth = width;
     spriteHeight = height;
+}
+
+void Entity::markForDeletion () {
+    markedForDeletion = true;
+}
+bool Entity::isMarkedForDeletion () const {
+    return markedForDeletion;
 }
