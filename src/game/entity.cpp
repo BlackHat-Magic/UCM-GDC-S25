@@ -1,12 +1,22 @@
 #include "entity.h"
 #include <cstdlib>
 
-Entity::Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations)
-    : x(x), y(y), spriteWidth(sprite_width), spriteHeight(sprite_height), flipped(false),
-      currentStage(0), currentAnimation(0), animations(animations)
-{
-    spritesheet = new Spritesheet(renderer, sprite_path, sprite_width, sprite_height);
-}
+Entity::Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int
+        sprite_height, float x, float y, int** animations) : 
+        x(x), y(y), 
+        spriteWidth(sprite_width), 
+        spriteHeight(sprite_height),
+        flipped(false), 
+        currentStage(0), 
+        currentAnimation(0),
+        animations(animations) {
+            spritesheet = new Spritesheet(
+                renderer, 
+                sprite_path, 
+                sprite_width, 
+                sprite_height
+            );
+        }
 
 Entity::~Entity() {
     delete spritesheet;
@@ -21,6 +31,7 @@ Entity::~Entity() {
 
 void Entity::setAnimations(int** new_animations) {
     if (animations) {
+        // I am not a fan but ig it works
         for (int i = 0; animations[i] != nullptr; ++i) {
             delete[] animations[i];  // Free each animation track (int*)
         }

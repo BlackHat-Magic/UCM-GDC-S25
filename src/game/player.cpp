@@ -8,10 +8,11 @@ Player::Player(SDL_Renderer* renderer, const InputHandler* input_handler, float 
     int* walk_animation = new int[7]{ 1, 2, 3, 4, 5, 6, -1 };
     int* attack_animation = new int[3]{ 4, 5, -1 };
     
-    int** animations = new int*[3];
+    int** animations = new int*[4];
     animations[0] = idle_animation;
     animations[1] = walk_animation;
     animations[2] = attack_animation;
+    animations[3] = nullptr;
 
     setAnimations(animations);
 }
