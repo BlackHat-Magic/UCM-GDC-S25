@@ -26,10 +26,14 @@ bool TmxParser::loadTmx(const std::string& tmxPath, SDL_Renderer* renderer) {
         baseDir += '/';
     }
     
+    std::cout << "Loading TMX file: " << tmxPath << std::endl;
+    std::cout << "Base directory: " << baseDir << std::endl;
+    
     // Load and parse the TMX file
     tinyxml2::XMLDocument doc;
     if (doc.LoadFile(tmxPath.c_str()) != tinyxml2::XML_SUCCESS) {
         std::cerr << "Failed to load TMX file: " << tmxPath << std::endl;
+        std::cerr << "Error: " << doc.ErrorStr() << std::endl;
         return false;
     }
     
@@ -50,6 +54,9 @@ bool TmxParser::loadTmx(const std::string& tmxPath, SDL_Renderer* renderer) {
         std::cerr << "Invalid map dimensions in TMX file" << std::endl;
         return false;
     }
+    
+    std::cout << "Map dimensions: " << mapWidth << "x" << mapHeight << " tiles" << std::endl;
+    std::cout << "Tile dimensions: " << tileWidth << "x" << tileHeight << " pixels" << std::endl;
     
     // Parse tilesets
     for (tinyxml2::XMLElement* tilesetElement = mapElement->FirstChildElement("tileset");
@@ -74,16 +81,31 @@ bool TmxParser::loadTmx(const std::string& tmxPath, SDL_Renderer* renderer) {
     // Load spritesheets for each tileset
     for (auto& [firstGid, tileset] : tilesets) {
         if (!tileset.imagePath.empty()) {
-            std::string fullImagePath = baseDir + tileset.imagePath;
+            // For embedded tilesets, the image path is relative to the TMX file
+            std::string fullImagePath;
+            if (tileset.source.empty()) {
+                // Embedded tileset
+                fullImagePath = baseDir + "../" + tileset.imagePath;
+            } else {
+                // External tileset - image path is relative to the TSX file
+                std::string tsxDir = std::filesystem::path(baseDir + "../tilesets/").string();
+                fullImagePath = tsxDir + tileset.imagePath;
+            }
+            
+            std::cout << "Loading spritesheet: " << fullImagePath << std::endl;
+            
             try {
                 auto spritesheet = std::make_shared<Spritesheet>(
                     renderer, fullImagePath.c_str(), tileset.tileWidth, tileset.tileHeight);
-                spritesheets[tileset.source] = spritesheet;
+                spritesheets[tileset.source.empty() ? tileset.name : tileset.source] = spritesheet;
+                std::cout << "Successfully loaded spritesheet" << std::endl;
             } catch (const std::exception& e) {
                 std::cerr << "Failed to load spritesheet: " << fullImagePath << std::endl;
                 std::cerr << "Error: " << e.what() << std::endl;
                 return false;
             }
+        } else {
+            std::cerr << "Warning: Tileset has no image path: " << tileset.name << std::endl;
         }
     }
     
@@ -101,8 +123,11 @@ bool TmxParser::parseTileset(tinyxml2::XMLElement* tilesetElement) {
     const char* source = tilesetElement->Attribute("source");
     if (source) {
         // This is an external tileset, parse the TSX file
-        std::string tsxPath = baseDir + source;
+        std::string tsxPath = baseDir + "../tilesets/" + source;
         std::string name = std::filesystem::path(source).stem().string();
+        
+        std::cout << "External tileset found: " << source << std::endl;
+        std::cout << "TSX path: " << tsxPath << std::endl;
         
         TmxTileset tileset(name, firstGid, 0, 0);
         tileset.source = source;
@@ -126,6 +151,8 @@ bool TmxParser::parseTileset(tinyxml2::XMLElement* tilesetElement) {
             return false;
         }
         
+        std::cout << "Embedded tileset found: " << name << std::endl;
+        
         TmxTileset tileset(name, firstGid, tileWidth, tileHeight);
         tileset.tileCount = tileCount;
         tileset.columns = columns;
@@ -136,6 +163,7 @@ bool TmxParser::parseTileset(tinyxml2::XMLElement* tilesetElement) {
             const char* imagePath = imageElement->Attribute("source");
             if (imagePath) {
                 tileset.imagePath = imagePath;
+                std::cout << "Image path: " << imagePath << std::endl;
             }
         }
         
@@ -149,6 +177,7 @@ bool TmxParser::parseTsxFile(TmxTileset& tileset, const std::string& tsxPath) {
     tinyxml2::XMLDocument doc;
     if (doc.LoadFile(tsxPath.c_str()) != tinyxml2::XML_SUCCESS) {
         std::cerr << "Failed to load TSX file: " << tsxPath << std::endl;
+        std::cerr << "Error: " << doc.ErrorStr() << std::endl;
         return false;
     }
     
@@ -169,12 +198,16 @@ bool TmxParser::parseTsxFile(TmxTileset& tileset, const std::string& tsxPath) {
         return false;
     }
     
+    std::cout << "TSX tileset dimensions: " << tileset.tileWidth << "x" << tileset.tileHeight << " pixels" << std::endl;
+    std::cout << "TSX tileset count: " << tileset.tileCount << " tiles, " << tileset.columns << " columns" << std::endl;
+    
     // Get the image element
     tinyxml2::XMLElement* imageElement = tilesetElement->FirstChildElement("image");
     if (imageElement) {
         const char* imagePath = imageElement->Attribute("source");
         if (imagePath) {
             tileset.imagePath = imagePath;
+            std::cout << "TSX image path: " << imagePath << std::endl;
         }
     }
     
@@ -186,12 +219,16 @@ bool TmxParser::parseLayer(tinyxml2::XMLElement* layerElement) {
     int width = layerElement->IntAttribute("width", 0);
     int height = layerElement->IntAttribute("height", 0);
     float opacity = layerElement->FloatAttribute("opacity", 1.0f);
-    bool visible = layerElement->BoolAttribute("visible", true);
+    int visibleAttr = layerElement->IntAttribute("visible", 1);
+    bool visible = (visibleAttr != 0);
     
     if (!name || width <= 0 || height <= 0) {
         std::cerr << "Invalid layer attributes" << std::endl;
         return false;
     }
+    
+    std::cout << "Parsing layer: " << name << " (" << width << "x" << height << ")" << std::endl;
+    std::cout << "  Opacity: " << opacity << ", Visible: " << (visible ? "yes" : "no") << std::endl;
     
     TmxLayer layer(name, width, height, visible, opacity);
     
@@ -221,6 +258,8 @@ bool TmxParser::parseLayer(tinyxml2::XMLElement* layerElement) {
         std::cerr << "Failed to parse CSV data" << std::endl;
         return false;
     }
+    
+    std::cout << "  Parsed " << layer.tileData.size() << " tile indices" << std::endl;
     
     // Add the layer to the list
     layers.push_back(layer);
@@ -272,6 +311,7 @@ CollisionLayer TmxParser::getCollisionLayerForName(const std::string& layerName)
     }
     
     // Default
+    std::cout << "Warning: Unknown layer name: " << layerName << ", defaulting to NONE" << std::endl;
     return CollisionLayer::NONE;
 }
 
@@ -288,6 +328,11 @@ std::vector<std::shared_ptr<Tilemap>> TmxParser::createTilemaps(SDL_Renderer* re
         "Obstacles",
         "Boundaries"
     };
+    
+    std::cout << "Creating tilemaps in the following order:" << std::endl;
+    for (const auto& name : layerOrder) {
+        std::cout << "  " << name << std::endl;
+    }
     
     // Create a map of collision layers for each tile index
     std::map<int, CollisionLayer> collisionMap;
@@ -306,8 +351,11 @@ std::vector<std::shared_ptr<Tilemap>> TmxParser::createTilemaps(SDL_Renderer* re
         const TmxLayer& layer = *layerIt;
         if (!layer.visible) {
             // Skip invisible layers
+            std::cout << "Skipping invisible layer: " << layer.name << std::endl;
             continue;
         }
+        
+        std::cout << "Processing layer: " << layer.name << std::endl;
         
         // Get the collision layer for this layer name
         CollisionLayer layerCollision = getCollisionLayerForName(layer.name);
@@ -335,9 +383,15 @@ std::vector<std::shared_ptr<Tilemap>> TmxParser::createTilemaps(SDL_Renderer* re
                 const TmxTileset& tileset = tilesets[tilesetFirstGid];
                 
                 // If we haven't selected a spritesheet for this layer yet, use this one
-                if (!layerSpritesheet && spritesheets.count(tileset.source) > 0) {
-                    layerSpritesheet = spritesheets[tileset.source];
-                    layerFirstGid = tilesetFirstGid;
+                if (!layerSpritesheet) {
+                    std::string spritesheetKey = tileset.source.empty() ? tileset.name : tileset.source;
+                    if (spritesheets.count(spritesheetKey) > 0) {
+                        layerSpritesheet = spritesheets[spritesheetKey];
+                        layerFirstGid = tilesetFirstGid;
+                        std::cout << "  Using spritesheet: " << spritesheetKey << " (firstGid: " << layerFirstGid << ")" << std::endl;
+                    } else {
+                        std::cerr << "  Warning: No spritesheet found for key: " << spritesheetKey << std::endl;
+                    }
                 }
                 
                 // Add this tile to the collision map if it has a collision layer
@@ -373,8 +427,13 @@ std::vector<std::shared_ptr<Tilemap>> TmxParser::createTilemaps(SDL_Renderer* re
             
             // Add the tilemap to the list
             tilemaps.push_back(tilemap);
+            std::cout << "  Created tilemap for layer: " << layer.name << " (opacity: " << layer.opacity << ")" << std::endl;
+        } else {
+            std::cerr << "  Warning: No spritesheet found for layer: " << layer.name << std::endl;
         }
     }
+    
+    std::cout << "Created " << tilemaps.size() << " tilemaps" << std::endl;
     
     return tilemaps;
 }

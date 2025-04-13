@@ -186,7 +186,7 @@ int main(int argc, char* argv[]) {
     std::vector<std::shared_ptr<Tilemap>> tilemaps;
     
     // Load the TMX file
-    if (!tmxParser.loadTmx("assets/maps/Demo.tmx", renderer)) {
+    if (!tmxParser.loadTmx("assets/maps/demo.tmx", renderer)) {
         std::cerr << "Failed to load TMX file" << std::endl;
         return 1;
     }
