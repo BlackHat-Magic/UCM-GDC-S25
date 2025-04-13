@@ -37,6 +37,9 @@ void Tilemap::setTile(int x, int y, int tile_index) {
             if (tile_index == tiles_with_collider[i]) {
                 int index = y * map_width + x;
                 collider[index / 64] |= (1LL << (index % 64));
+            } else {
+                int index = y * map_width + x;
+                collider[index / 64] &= ~(1LL << (index % 64));
             }
         }
     }
@@ -127,7 +130,14 @@ void Tilemap::saveToFile(const char *path) const {
 
     file.close();
 }
+
 Direction Tilemap::intersects_rect(float x, float y, float w, float h) const {
+    // convert from world space to tile space
+    x = x / tile_width;
+    y = y / tile_height;
+    w = w / tile_width;
+    h = h / tile_height;
+
     Direction dir = NONE;
     int left = static_cast<int>(x - w / 2.0f);
     int right = static_cast<int>(x + w / 2.0f);
@@ -152,24 +162,24 @@ Direction Tilemap::intersects_rect(float x, float y, float w, float h) const {
 
                 if (x_dif > y_dif) {
                     if (dir == UP) {
-                        dir = (x > i_f) ? UP_RIGHT : UP_LEFT;
+                        dir = (x > i_f) ? UP_LEFT : UP_RIGHT;
                         return dir;
                     }
                     if (dir == DOWN) {
-                        dir = (x > i_f) ? DOWN_RIGHT : DOWN_LEFT;
+                        dir = (x > i_f) ? DOWN_LEFT : DOWN_RIGHT;
                         return dir;
                     }
-                    dir = (x > i_f) ? RIGHT : LEFT;
+                    dir = (x > i_f) ? LEFT : RIGHT;
                 } else {
                     if (dir == LEFT) {
-                        dir = (y > j_f) ? UP_LEFT : DOWN_LEFT;
+                        dir = (y > j_f) ? DOWN_LEFT : UP_LEFT;
                         return dir;
                     }
                     if (dir == RIGHT) {
-                        dir = (y > j_f) ? UP_RIGHT : DOWN_RIGHT;
+                        dir = (y > j_f) ? DOWN_RIGHT : UP_RIGHT;
                         return dir;
                     }
-                    dir = (y > j_f) ? DOWN : UP;
+                    dir = (y > j_f) ? UP : DOWN;
                 }
             }
         }
@@ -179,6 +189,10 @@ Direction Tilemap::intersects_rect(float x, float y, float w, float h) const {
 }
 
 float Tilemap::raycast(float x, float y, float angle) const {
+    // convert from world space to tile space
+    x = x / tile_width;
+    y = y / tile_height;
+
     float raydir_x = std::cos(angle);
     float raydir_y = std::sin(angle);
 
@@ -235,5 +249,7 @@ float Tilemap::raycast(float x, float y, float angle) const {
     } else {
         perp_wall_dist = (static_cast<float>(map_y) - y + (1.0f - static_cast<float>(step_y)) / 2.0f) / raydir_y;
     }
+    // convert dist to world space
+    perp_wall_dist *= tile_width; // technically doesn't work if tile_width != tile_height, but uh, shut up
     return perp_wall_dist;
 }

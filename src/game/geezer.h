@@ -24,12 +24,9 @@ public:
 
     ~Geezer();
 
+    Direction control(Tilemap *map, float time, float deltaTime, float cameraX, float cameraY) override;
     // Override update to include state transitions and attack logic
-    void update(float time, float deltaTime, float cameraX, float cameraY);
-
-    // Implements the pure virtual control() method.
-    // For now, we return NONE since the state logic overrides movement.
-    Direction control(float time, float deltaTime) override;
+    // void update(Tilemap *map, float time, float deltaTime, float cameraX, float cameraY);
 
     // Render the enemy and its fireballs
     // I question how necessary this override is
@@ -90,5 +87,5 @@ private:
     void setDestination (float time);
 
     // move to destination while maintaining arc
-    void moveToDestination (float deltaTime);
+    Direction moveToDestination ();
 };

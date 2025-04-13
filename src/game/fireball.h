@@ -12,7 +12,7 @@ public:
     // ~Fireball();
 
     // For the projectile, update its position using its velocity.
-    void update(float time, float deltaTime) override;
+    void update(Tilemap *_map, float time, float deltaTime, float cameraX, float cameraY) override;
 
     // Test if the projectile is off-screen.
     bool isOffScreen(int screenWidth, int screenHeight, float cameraX, float cameraY) const;

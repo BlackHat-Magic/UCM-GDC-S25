@@ -16,7 +16,7 @@ Player::Player(SDL_Renderer* renderer, const InputHandler* input_handler, float 
     setAnimations(animations);
 }
 
-Direction Player::control(float time, float deltaTime) {
+Direction Player::control(Tilemap *_map, float time, float deltaTime, float cameraX, float cameraY) {
     Direction direction = NONE;
 
     if (input_handler->is_key_pressed(SDL_SCANCODE_UP)) {

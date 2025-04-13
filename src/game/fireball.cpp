@@ -29,7 +29,7 @@ Fireball::Fireball(SDL_Renderer* renderer, const char* sprite_path,
     setStage(0);
 }
 
-void Fireball::update(float time, float deltaTime) {
+void Fireball::update(Tilemap *_map, float time, float deltaTime, float cameraX, float cameraY) {
     // Move the fireball along its velocity
     x += vx * deltaTime;
     y += vy * deltaTime;
