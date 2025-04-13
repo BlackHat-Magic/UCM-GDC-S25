@@ -238,10 +238,11 @@ int main(int argc, char* argv[]) {
 				player = new Player (renderer, &handler, 300, 300);
 
 				// Create geezer animations
-				geezerAnimations = new int*[3];
+				geezerAnimations = new int*[4];
 				geezerAnimations[0] = new int[2]{0, -1};
 				geezerAnimations[1] = new int[2]{0, -1};
 				geezerAnimations[2] = new int[2]{0, -1};
+				geezerAnimations[3] = nullptr;
 				// TODO: Geezer Animations
 
 				geezer = new Geezer (renderer, "assets/sprites/geezer.png", 24, 24, 300, 150, geezerAnimations, 0.1f, 150.0f, player);
@@ -291,14 +292,6 @@ int main(int argc, char* argv[]) {
 			} else if (onMenu) {
 				currentState = GameState::MAIN_MENU;
 				delete player; player = nullptr;
-				std::cout << "dada" << std::endl;
-				if (geezerAnimations) {
-					delete[] geezerAnimations[0];
-					delete[] geezerAnimations[1];
-					delete[] geezerAnimations[2];
-					delete[] geezerAnimations;
-					geezerAnimations = nullptr;
-				}
 				delete geezer; geezer = nullptr;
 				mousePressed = false;
 				level_music.pause();
@@ -344,12 +337,6 @@ int main(int argc, char* argv[]) {
 
 delete player;
 delete geezer;
-if (geezerAnimations) {
-	delete[] geezerAnimations[0];
-	delete[] geezerAnimations[1];
-	delete[] geezerAnimations[2];
-	delete[] geezerAnimations;
-}
 delete[] collidables;
 
 SDL_DestroyTexture(startTexture);
