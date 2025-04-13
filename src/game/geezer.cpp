@@ -38,7 +38,7 @@ Geezer::~Geezer() {
     }
 }
 
-void Geezer::update(float time, float deltaTime) {
+Direction Geezer::control(Tilemap *map, float time, float deltaTime) {
     // Decide state based on distance to target
     float dist = distanceToTarget();
     
@@ -88,7 +88,7 @@ void Geezer::update(float time, float deltaTime) {
     }
 
     // if we're in a moving state, move toward destination
-    moveToDestination(deltaTime);
+    Direction dir = moveToDestination();
 
     // if we can fire, fire
     fireAtTarget(time);
@@ -100,7 +100,7 @@ void Geezer::update(float time, float deltaTime) {
     const int screenWidth = 640;
     const int screenHeight = 480;
     projectiles.erase(std::remove_if(projectiles.begin(), projectiles.end(), [&](Fireball* fb) {
-        fb->update(time, deltaTime);
+        fb->update(map, time, deltaTime);
         if (fb->isOffScreen(screenWidth, screenHeight)) {
             delete fb;
             return true;
@@ -108,11 +108,8 @@ void Geezer::update(float time, float deltaTime) {
 
         return false;
     }), projectiles.end());
-}
 
-Direction Geezer::control(float time, float deltaTime) {
-    // Return NONE so that MovementAttackAnimated does not override
-    return NONE;
+    return dir;
 }
 
 // handles state-specific firing logic
@@ -171,32 +168,46 @@ void Geezer::fireAtTarget(float time) {
     projectiles.push_back(fb);
 
     lastAttackTime = time;
+    attack(time);
 }
 
 // handles state-specific speeds
-void Geezer::moveToDestination (float deltaTime) {
+Direction Geezer::moveToDestination() {
     // don't move if idle or already attacking
     if (currentState == G_IDLE || currentState == G_ATTACK) {
-        return;
+        return NONE;
     }
     
     // displacement to target position
     float dx = destinationX - x;
     float dy = destinationY - y;
+
     float mag = std::sqrt(dx*dx + dy*dy);
 
-    if (mag < movementSpeed*deltaTime || mag <= 0.0f) {
-        x = destinationX;
-        y = destinationY;
-        return;
+    if (dx > 0.1f) {
+        if (dy > 0.1f) {
+            return DOWN_RIGHT;
+        } else if (dy < -0.1f) {
+            return UP_RIGHT;
+        } else {
+            return RIGHT;
+        }
+    } else if (dx < -0.1f) {
+        if (dy > 0.1f) {
+            return DOWN_LEFT;
+        } else if (dy < -0.1f) {
+            return UP_LEFT;
+        } else {
+            return LEFT;
+        }
+    } else if (dy > 0.1f) {
+        return DOWN;
+    } else if (dy < -0.1f) {
+        return UP;
+    } else {
+        // we're at the destination
+        return NONE;
     }
-
-    dx /= mag;
-    dy /= mag;
-
-    x += dx * movementSpeed * deltaTime;
-    y += dy * movementSpeed * deltaTime;
-    return;
 
     // in the future, we want to avoid getting too close to the player
     // e.g., we're trying to move from one side of circle around player to

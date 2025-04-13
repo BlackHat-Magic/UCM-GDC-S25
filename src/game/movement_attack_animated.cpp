@@ -11,8 +11,8 @@ MovementAttackAnimated::MovementAttackAnimated(SDL_Renderer* renderer, const cha
     lastAnimationTime = 0.0f;
 }
 
-void MovementAttackAnimated::update(float time, float deltaTime) {
-    Direction newDirection = control(time, deltaTime);
+void MovementAttackAnimated::update(Tilemap *map, float time, float deltaTime) {
+    Direction newDirection = control(map, time, deltaTime);
 
     if (time - lastAnimationTime >= animationSpeed) {
         lastAnimationTime = time;
@@ -42,16 +42,56 @@ void MovementAttackAnimated::update(float time, float deltaTime) {
 
     direction = newDirection;
 
+    float dx = 0.0f;
+    float dy = 0.0f;
+
     switch (direction) {
-        case UP:    y -= movementSpeed * deltaTime; break;
-        case DOWN:  y += movementSpeed * deltaTime; break;
-        case LEFT:  x -= movementSpeed * deltaTime; break;
-        case RIGHT: x += movementSpeed * deltaTime; break;
-        case UP_LEFT:   x -= movementSpeed * deltaTime; y -= movementSpeed * deltaTime; break;
-        case UP_RIGHT:  x += movementSpeed * deltaTime; y -= movementSpeed * deltaTime; break;
-        case DOWN_LEFT: x -= movementSpeed * deltaTime; y += movementSpeed * deltaTime; break;
-        case DOWN_RIGHT: x += movementSpeed * deltaTime; y += movementSpeed * deltaTime; break;
-        default: break;
+        case UP:
+            dy = -movementSpeed * deltaTime;
+            break;
+        case DOWN:
+            dy = movementSpeed * deltaTime;
+            break;
+        case LEFT:
+            dx = -movementSpeed * deltaTime;
+            break;
+        case RIGHT:
+            dx = movementSpeed * deltaTime;
+            break;
+        case UP_LEFT:
+            dx = -movementSpeed * deltaTime / std::sqrt(2);
+            dy = -movementSpeed * deltaTime / std::sqrt(2);
+            break;
+        case UP_RIGHT:
+            dx = movementSpeed * deltaTime / std::sqrt(2);
+            dy = -movementSpeed * deltaTime / std::sqrt(2);
+            break;
+        case DOWN_LEFT:
+            dx = -movementSpeed * deltaTime / std::sqrt(2);
+            dy = movementSpeed * deltaTime / std::sqrt(2);
+            break;
+        case DOWN_RIGHT:
+            dx = movementSpeed * deltaTime / std::sqrt(2);
+            dy = movementSpeed * deltaTime / std::sqrt(2);
+            break;
+        default:
+            break;
+    }
+
+    float proposedX = x + dx;
+    float proposedY = y + dy;
+
+    if (map->intersects_rect(proposedX + spriteWidth / 2, proposedY + spriteWidth / 2, spriteWidth, spriteHeight) == NONE) {
+        x = proposedX;
+        y = proposedY;
+    } else {
+        if (map->intersects_rect(proposedX, y, spriteWidth, spriteHeight) == NONE) {
+            x = proposedX;
+        }
+    
+        if (map->intersects_rect(x, proposedY, spriteWidth, spriteHeight) == NONE) {
+            y = proposedY;
+        }
     }
 
     setPosition(static_cast<int>(x), static_cast<int>(y));

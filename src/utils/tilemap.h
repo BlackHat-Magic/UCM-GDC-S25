@@ -15,6 +15,7 @@ public:
 
     void draw(SDL_Renderer *renderer, int dest_x, int dest_y, int dest_w = -1, int dest_h = -1) const;
     Direction intersects_rect(float x, float y, float w, float h) const;
+    // angle is in radians
     float raycast(float x, float y, float angle) const;
 
 private:

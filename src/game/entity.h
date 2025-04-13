@@ -1,13 +1,14 @@
 #pragma once
 #include <SDL2/SDL.h>
 #include "../utils/spritesheet.h"
+#include "../utils/tilemap.h"
 
 class Entity {
 public:
     Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations);
     virtual ~Entity();
 
-    virtual void update(float time, float deltaTime) = 0;
+    virtual void update(Tilemap *map, float time, float deltaTime) = 0;
     void render(SDL_Renderer* renderer);
 
     SDL_Point getPosition() const;
@@ -22,7 +23,6 @@ public:
     void setSpriteSize(int width, int height);
     float x, y;
 
-private:
     Spritesheet* spritesheet;
     int spriteWidth, spriteHeight;
     int currentStage;
