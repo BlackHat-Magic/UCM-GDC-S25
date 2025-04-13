@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="12" height="12" tilewidth="16" tileheight="16" infinite="0" nextlayerid="7" nextobjectid="1">
- <tileset firstgid="1" source="./assets/tilesets/redshifted.tsx"/>
- <tileset firstgid="265" source="./assets/tilesets/redshifted-nature.tsx"/>
+ <tileset firstgid="1" source="redshifted.tsx"/>
+ <tileset firstgid="265" source="redshifted-nature.tsx"/>
  <layer id="1" name="Abyss" width="12" height="12" locked="1">
   <data encoding="csv">
 107,107,107,107,107,107,107,107,107,107,107,107,
