@@ -25,7 +25,7 @@ public:
     ~Geezer();
 
     // Override update to include state transitions and attack logic
-    void update(float time, float deltaTime) override;
+    void update(Tilemap *_map, float time, float deltaTime) override;
 
     // Implements the pure virtual control() method.
     // For now, we return NONE since the state logic overrides movement.

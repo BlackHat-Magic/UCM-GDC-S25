@@ -38,7 +38,7 @@ Geezer::~Geezer() {
     }
 }
 
-void Geezer::update(float time, float deltaTime) {
+void Geezer::update(Tilemap *_map, float time, float deltaTime) {
     // Decide state based on distance to target
     float dist = distanceToTarget();
     
@@ -100,7 +100,7 @@ void Geezer::update(float time, float deltaTime) {
     const int screenWidth = 640;
     const int screenHeight = 480;
     projectiles.erase(std::remove_if(projectiles.begin(), projectiles.end(), [&](Fireball* fb) {
-        fb->update(time, deltaTime);
+        fb->update(NULL, time, deltaTime);
         if (fb->isOffScreen(screenWidth, screenHeight)) {
             delete fb;
             return true;

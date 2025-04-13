@@ -50,7 +50,7 @@ int main() {
 	InputHandler handler;
 
 	// create player
-	Player player (renderer, &handler, 100, 100);
+	Player player (renderer, &handler, 300, 300);
 
 	// create geezer animations
 	int* idleAnimation = new int[2]{0, -1};
@@ -111,10 +111,10 @@ int main() {
 		lastTime = time;
 		
 		// update player
-		player.update (time, deltaTime);
+		player.update (&map, time, deltaTime);
 
 		// update geezer
-		geezer.update (time, deltaTime);
+		geezer.update (&map, time, deltaTime);
 
 		// render updates
 		SDL_RenderClear (renderer);
