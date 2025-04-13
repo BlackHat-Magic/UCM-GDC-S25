@@ -9,7 +9,7 @@ public:
     MovementAttackAnimated(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations, float animation_speed, float movement_speed);
 
     void update(Tilemap *map, float time, float deltaTime) override;
-    virtual Direction control(float time, float deltaTime) = 0;
+    virtual Direction control(Tilemap *map, float time, float deltaTime) = 0;
     void attack(float time);
     void setAnimationSpeed(float speed);
     void setMovementSpeed(float speed);

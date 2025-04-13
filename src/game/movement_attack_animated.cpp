@@ -12,7 +12,7 @@ MovementAttackAnimated::MovementAttackAnimated(SDL_Renderer* renderer, const cha
 }
 
 void MovementAttackAnimated::update(Tilemap *map, float time, float deltaTime) {
-    Direction newDirection = control(time, deltaTime);
+    Direction newDirection = control(map, time, deltaTime);
 
     if (time - lastAnimationTime >= animationSpeed) {
         lastAnimationTime = time;
@@ -94,7 +94,7 @@ void MovementAttackAnimated::update(Tilemap *map, float time, float deltaTime) {
         }
     }
 
-    setPosition(x, y);
+    setPosition(static_cast<int>(x), static_cast<int>(y));
 }
 
 void MovementAttackAnimated::attack(float time) {

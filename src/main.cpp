@@ -54,9 +54,10 @@ int main() {
 
 	// create geezer animations
 	int* idleAnimation = new int[2]{0, -1};
-	int** geezerAnimations = new int*[2];
+	int** geezerAnimations = new int*[3];
 	geezerAnimations[0] = idleAnimation;
-	geezerAnimations[1] = nullptr;
+	geezerAnimations[1] = idleAnimation;
+	geezerAnimations[2] = idleAnimation;
 
 	// create geezer
 	Geezer geezer (
