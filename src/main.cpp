@@ -1,3 +1,4 @@
+// src/main.cpp
 #include <iostream>
 #include <vector>
 #include <string>
@@ -5,6 +6,7 @@
 #include <algorithm>
 #include <limits>
 #include <map> // Include map for tile layers
+#include <memory> // For shared_ptr
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -15,6 +17,7 @@
 #include "utils/tilemap.h"
 #include "utils/input.h"
 #include "utils/collisions_defs.h" // Include collision definitions
+#include "utils/tmx_parser.h" // Include our new TMX parser
 
 #include "game/player.h"
 #include "game/geezer.h"
@@ -178,26 +181,21 @@ int main(int argc, char* argv[]) {
     MusicTrack menu_music("assets/audio/patient_rituals.mp3");
     MusicTrack level_music("assets/audio/level_theme.mp3");
 
-    // --- Tilemap Setup ---
-    Spritesheet sheet(renderer, "assets/tilesets/Dungeon_16x16_asset_pack/tileset.png", 16, 16);
-    // Define which tile indices map to which collision layers
-    std::map<int, CollisionLayer> collisionMap;
-    // Example: Indices 0-8, 12-14, 26 are walls/obstacles/boundaries
-    int wall_indices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 26};
-    for (int index : wall_indices) {
-        // Assign a combined layer for simplicity, or be more specific
-        collisionMap[index] = CollisionLayer::LEVEL_WALL | CollisionLayer::LEVEL_OBSTACLE | CollisionLayer::LEVEL_BOUNDARY;
+    // --- TMX Parser and Tilemaps ---
+    TmxParser tmxParser;
+    std::vector<std::shared_ptr<Tilemap>> tilemaps;
+    
+    // Load the TMX file
+    if (!tmxParser.loadTmx("assets/maps/Demo.tmx", renderer)) {
+        std::cerr << "Failed to load TMX file" << std::endl;
+        return 1;
     }
-    // Add other layers (pits, hazards) if needed: collisionMap[PIT_INDEX] = CollisionLayer::LEVEL_PIT;
-
-    // Create tilemaps using the collision map
-    // Assuming map dimensions are known or loaded from file meta-data
-    // For now, hardcoding dimensions based on file names (e.g., 40x30 tiles = 640x480)
-    const int MAP_WIDTH_TILES = 40;
-    const int MAP_HEIGHT_TILES = 30;
-    Tilemap surface_map(&sheet, 16, 16, MAP_WIDTH_TILES, MAP_HEIGHT_TILES, collisionMap, "assets/maps/test_map_surfaces.txt");
-    Tilemap collision_layer_map(&sheet, 16, 16, MAP_WIDTH_TILES, MAP_HEIGHT_TILES, collisionMap, "assets/maps/test_map_trapdoors.txt"); // Use this map for collision checks
-
+    
+    // Create tilemaps from the TMX data
+    tilemaps = tmxParser.createTilemaps(renderer);
+    
+    // Get the collision tilemap (assuming the last one has all collision data)
+    Tilemap* collisionTilemap = tilemaps.empty() ? nullptr : tilemaps.back().get();
 
     // --- Game Loop Variables ---
     GameState currentState = GameState::MAIN_MENU;
@@ -299,7 +297,7 @@ int main(int argc, char* argv[]) {
 
         case GameState::PLAYING: {
             // Update Entities & Collisions
-            entityManager.update(&collision_layer_map, time, deltaTime); // Pass the collision map
+            entityManager.update(collisionTilemap, time, deltaTime); // Pass the collision map
 
             // Check for Game Over condition
             Player* player = entityManager.getPlayer();
@@ -313,8 +311,12 @@ int main(int argc, char* argv[]) {
             // Render Game World
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black background
             SDL_RenderClear(renderer);
-            surface_map.draw(renderer, 0, 0); // Draw visual map
-            // collision_layer_map.draw(renderer, 0, 0); // Optionally draw collision map for debug
+            
+            // Draw all tilemaps in the correct order
+            for (const auto& tilemap : tilemaps) {
+                tilemap->draw(renderer, 0, 0);
+            }
+            
             entityManager.render();
 
             // Render HUD
@@ -356,7 +358,12 @@ int main(int argc, char* argv[]) {
              // Render Paused State (Game world dimmed)
              SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
              SDL_RenderClear(renderer);
-             surface_map.draw(renderer, 0, 0);
+             
+             // Draw all tilemaps in the correct order
+             for (const auto& tilemap : tilemaps) {
+                tilemap->draw(renderer, 0, 0);
+             }
+             
              entityManager.render(); // Render entities in their paused state
 
              // Dimming Overlay
@@ -398,7 +405,12 @@ int main(int argc, char* argv[]) {
              // Render Game Over State (Game world dimmed red)
              SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
              SDL_RenderClear(renderer);
-             surface_map.draw(renderer, 0, 0);
+             
+             // Draw all tilemaps in the correct order
+             for (const auto& tilemap : tilemaps) {
+                tilemap->draw(renderer, 0, 0);
+             }
+             
              entityManager.render(); // Render entities (e.g., dead player)
 
              // Dimming Overlay (Red tint)
@@ -432,6 +444,7 @@ int main(int argc, char* argv[]) {
 
     // --- Cleanup ---
     entityManager.clearAll(); // Ensure all entities are cleared
+    tilemaps.clear(); // Clear tilemaps
 
     // Destroy Textures
     SDL_DestroyTexture(startTexture);

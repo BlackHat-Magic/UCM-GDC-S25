@@ -1,3 +1,4 @@
+// src/utils/tilemap.h
 #pragma once
 #include <SDL2/SDL.h>
 #include <vector>
@@ -35,8 +36,9 @@ public:
     // Returns true if a collision occurs with a relevant tile layer.
     bool checkCollision(const SDL_FRect& boundingBox, CollisionLayer entityMask) const;
 
-    // Old intersects_rect - Deprecated or adapt if needed
-    // Direction intersects_rect(float x, float y, float w, float h) const;
+    // Set opacity for rendering (0.0f to 1.0f)
+    void setOpacity(float opacity) { this->opacity = opacity; }
+    float getOpacity() const { return opacity; }
 
     // Raycast might need updating to consider layers too
     float raycast(float x, float y, float angle) const;
@@ -49,11 +51,10 @@ private:
     int map_height;
     std::vector<int> tiles; // Use std::vector for easier management
     std::map<int, CollisionLayer> tileCollisionLayers; // Map tile index -> layer
+    float opacity; // Opacity for rendering (0.0f to 1.0f)
 
     // Helper to load map data from a text file
     void loadFromFile(const char* path);
-    // Helper to save map data (optional)
-    // void saveToFile(const char* path) const;
 
     // Internal helper to check if a specific tile index has a collision layer
     bool isTileCollidable(int tileIndex, CollisionLayer entityMask) const;

@@ -1,3 +1,4 @@
+// src/utils/tilemap.cpp
 #include "tilemap.h"
 #include <fstream>
 #include <sstream>
@@ -18,7 +19,8 @@ Tilemap::Tilemap(
     map_width(map_width),
     map_height(map_height),
     tiles(map_width * map_height, -1), // Initialize vector with -1
-    tileCollisionLayers(tile_collision_layers) // Copy the layer map
+    tileCollisionLayers(tile_collision_layers), // Copy the layer map
+    opacity(1.0f) // Default to fully opaque
 {
     if (!sheet) {
         throw std::runtime_error("Tilemap created with null spritesheet.");
@@ -75,13 +77,18 @@ CollisionLayer Tilemap::getTileLayer(int tileX, int tileY) const {
      return CollisionLayer::NONE; // No specific layer defined for this tile
 }
 
-
 // Render the tilemap
 void Tilemap::draw(
     SDL_Renderer* renderer, int dest_x, int dest_y, int dest_w, int dest_h
 ) const {
     int drawTileW = (dest_w == -1) ? tile_width : dest_w;
     int drawTileH = (dest_h == -1) ? tile_height : dest_h;
+
+    // Set blend mode for transparency if opacity < 1.0
+    if (opacity < 1.0f) {
+        SDL_SetTextureAlphaMod(sheet->getTexture(), static_cast<Uint8>(opacity * 255));
+        SDL_SetTextureBlendMode(sheet->getTexture(), SDL_BLENDMODE_BLEND);
+    }
 
     for (int y = 0; y < map_height; ++y) {
         for (int x = 0; x < map_width; ++x) {
@@ -100,6 +107,11 @@ void Tilemap::draw(
                 }
             }
         }
+    }
+
+    // Reset alpha if we changed it
+    if (opacity < 1.0f) {
+        SDL_SetTextureAlphaMod(sheet->getTexture(), 255);
     }
 }
 
@@ -173,21 +185,6 @@ bool Tilemap::checkCollision(const SDL_FRect& boundingBox, CollisionLayer entity
 
     return false; // No collision found
 }
-
-
-// --- Deprecated / Needs Update ---
-/*
-Direction Tilemap::intersects_rect(float x, float y, float w, float h) const {
-    // This function needs significant rework to use layers/masks and provide
-    // useful collision response information (like normals).
-    // Returning Direction is not ideal for velocity-based movement.
-    // Keeping the old implementation commented out for reference.
-
-    // ... (old implementation) ...
-
-    return NONE; // Placeholder
-}
-*/
 
 // Raycast function - might need updating to consider layers
 float Tilemap::raycast(float x, float y, float angle) const {
