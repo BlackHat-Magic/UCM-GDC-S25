@@ -13,8 +13,17 @@ Presently-unnamed game for UC Merced's Game Development Club Spring 2025 Game Ja
     - [ ] Boss (stretch goal)
 - [x] ~~Collisions~~
     - Sofia
-- [ ] level Generation
-- [ ] Title screen (stretch goal)
+- [X] ~~Enemies Damage~~
+    - Luke
+- [ ] level File Format
+    - Luke
+- [ ] Create Level
+    - Luke
+- [ ] Level Generation (stretch goal)
+    - Luke
+- [X] ~~Title screen (stretch goal)~~
+- [X] ~~Pause Menu (Stretch goal)~~
+    - Luke
 - [ ] camera scrolling
     - [ ] horizontal scroll
     - [ ] "track" movement for nonlinear levels (e.g., sideways, diagonal) (stretch goal)

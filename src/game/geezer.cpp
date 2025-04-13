@@ -101,6 +101,16 @@ Direction Geezer::control(Tilemap *map, float time, float deltaTime) {
     const int screenHeight = 480;
     projectiles.erase(std::remove_if(projectiles.begin(), projectiles.end(), [&](Fireball* fb) {
         fb->update(map, time, deltaTime);
+
+        if (checkFireballCollision (fb)) {
+            Player* playerTarget = dynamic_cast<Player*>(target);
+            if (playerTarget) {
+                playerTarget -> takeDamage (fb ->getDamage ());
+            }
+            delete fb;
+            return true;
+        }
+
         if (fb->isOffScreen(screenWidth, screenHeight)) {
             delete fb;
             return true;
@@ -261,4 +271,32 @@ void Geezer::setDestination (float time) {
 
     // set last pathfind time
     lastPathfindTime = time;
+}
+
+bool Geezer::checkFireballCollision (Fireball* fb) {
+    Player* playerTarget = dynamic_cast<Player*>(target);
+    if (!playerTarget) {
+        return false;
+    }
+    if (!playerTarget->isAlive ()) {
+        return false;
+    }
+    std::cout << "checking collision" << std::endl;
+
+    SDL_Rect fireballRect = {
+        static_cast<int>(fb->x), 
+        static_cast<int>(fb->y), 
+        fb->spriteWidth, 
+        fb->spriteHeight
+    };
+    SDL_Rect playerRect = {
+        static_cast<int>(playerTarget->x),
+        static_cast<int>(playerTarget->y),
+        playerTarget->spriteWidth,
+        playerTarget->spriteHeight,
+    };
+
+    bool answer = SDL_HasIntersection (&fireballRect, &playerRect);
+    std::cout << answer << std::endl;
+    return answer;
 }

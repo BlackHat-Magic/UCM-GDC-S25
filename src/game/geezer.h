@@ -2,6 +2,7 @@
 #include "movement_attack_animated.h"
 #include "fireball.h"
 #include "entity.h"
+#include "player.h"
 #include <vector>
 #include <random>
 
@@ -34,6 +35,7 @@ private:
     GeezerState prevState;
     SDL_Renderer* renderer;
     Entity* target; // for example, the player
+    // Player* playerTarget;
 
     // destination
     float destinationX;
@@ -85,4 +87,6 @@ private:
 
     // move to destination while maintaining arc
     Direction moveToDestination ();
+
+    bool checkFireballCollision (Fireball* fb);
 };
