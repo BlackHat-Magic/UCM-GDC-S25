@@ -4,6 +4,7 @@
 #include <sstream>
 #include <algorithm>
 #include <limits>
+#include <map> // Include map for tile layers
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -13,475 +14,449 @@
 #include "utils/audio.h"
 #include "utils/tilemap.h"
 #include "utils/input.h"
+#include "utils/collisions_defs.h" // Include collision definitions
 
 #include "game/player.h"
 #include "game/geezer.h"
 #include "game/entity_manager.h"
 
-enum class GameState {
-	MAIN_MENU,
-	PLAYING,
-	PAUSED,
-	GAME_OVER,
-	QUIT
-};
+enum class GameState { MAIN_MENU, PLAYING, PAUSED, GAME_OVER, QUIT };
 
-SDL_Texture* renderText (SDL_Renderer* renderer, TTF_Font* font, const std::string &text, SDL_Color color) {
-	SDL_Surface* surface = TTF_RenderText_Solid (font, text.c_str(), color);
-	if (!surface) {
-		std::cerr << "Failed to render text surface: " << TTF_GetError () << std::endl;
-		return nullptr;
-	}
+// Helper function to render text
+SDL_Texture* renderText(
+    SDL_Renderer* renderer, TTF_Font* font, const std::string& text,
+    SDL_Color color
+) {
+    SDL_Surface* surface = TTF_RenderText_Solid(font, text.c_str(), color);
+    if (!surface) {
+        std::cerr << "Failed to render text surface: " << TTF_GetError()
+                  << std::endl;
+        return nullptr;
+    }
 
-	SDL_Texture* texture = SDL_CreateTextureFromSurface (renderer, surface);
-	if (!texture) {
-		std::cerr << "Failed to create texture from rendered text: " << SDL_GetError () << std::endl;
-	}
-	SDL_FreeSurface (surface);
-	return (texture);
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture) {
+        std::cerr << "Failed to create texture from rendered text: "
+                  << SDL_GetError() << std::endl;
+    }
+    SDL_FreeSurface(surface);
+    return texture;
 }
+
+// Function to set up entities for a new game/restart
+void setupNewGame(EntityManager& entityManager, SDL_Renderer* renderer, InputHandler& handler) {
+     entityManager.clearAll();
+
+     // Create Player
+     Player* playerPtr = entityManager.addEntity<Player>(
+         renderer, &handler, 320.0f, 400.0f, // Initial position (use floats)
+         100.0f                             // Initial health
+     );
+
+     if (!playerPtr) {
+         std::cerr << "FATAL: Player failed to initialize." << std::endl;
+         // Handle this critical error (e.g., throw exception, exit)
+         return; // Or return bool success status
+     }
+
+     // --- Define Geezer animations ---
+     // IMPORTANT: Replace these placeholders with actual sprite indices!
+     int* geezer_idle = new int[2]{0, -1}; // Sprite index 0 for idle
+     int* geezer_walk = new int[2]{0, -1}; // Sprite index 0 for walk (NEEDS FIXING)
+     int* geezer_atk = new int[2]{0, -1};  // Sprite index 0 for attack (NEEDS FIXING)
+     int** geezerAnimations = new int*[4];
+     geezerAnimations[0] = geezer_idle;
+     geezerAnimations[1] = geezer_walk;
+     geezerAnimations[2] = geezer_atk;
+     geezerAnimations[3] = nullptr; // Terminator
+
+     // Create Geezer targeting the player
+     entityManager.addEntity<Geezer>(
+         renderer,
+         &entityManager, // Pass EntityManager for fireball spawning
+         "assets/sprites/geezer.png",
+         24, 24,          // Sprite dimensions
+         320.0f, 100.0f,  // Initial position
+         geezerAnimations, // The defined animations
+         0.15f,           // Animation speed
+         120.0f,          // Movement speed
+         playerPtr        // Target
+     );
+
+     // Add more enemies or other entities here
+}
+
 
 int main(int argc, char* argv[]) {
-	// initialize SDL
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
-		std::cout << "SDL could not initialize: " << SDL_GetError() << std::endl;
-		return 1;
-	}
+    // --- SDL Initialization ---
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+        std::cerr << "SDL could not initialize: " << SDL_GetError() << std::endl;
+        return 1;
+    }
+    if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
+        std::cerr << "SDL_image could not initialize: " << IMG_GetError()
+                  << std::endl;
+        SDL_Quit();
+        return 1;
+    }
+    if (TTF_Init() == -1) {
+        std::cerr << "SDL_ttf could not initialize: " << TTF_GetError()
+                  << std::endl;
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
+    if (!AudioSystem::init()) {
+        std::cerr << "Audio system could not initialize." << std::endl;
+        TTF_Quit();
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
+    }
 
-	// initialize SDL_Image
-	if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
-		std::cerr << "SDL_image could not initialize: " << IMG_GetError () << std::endl;
-		return 1;
-	}
+    // --- Window & Renderer ---
+    SDL_Window* window = SDL_CreateWindow(
+        "Game Title", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480,
+        SDL_WINDOW_SHOWN
+    );
+    if (!window) { /* ... error handling ... */ return 1; }
+    SDL_Renderer* renderer = SDL_CreateRenderer(
+        window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
+    );
+    if (!renderer) { /* ... error handling ... */ return 1; }
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Default background
 
-	// initialize ttf
-	if (TTF_Init () == -1) {
-		std::cerr << "SDL_ttf could not initialize: " << TTF_GetError () << std::endl;
-	}
+    // --- Fonts ---
+    TTF_Font* menuFont = TTF_OpenFont("assets/fonts/press_start/prstart.ttf", 28);
+    TTF_Font* hudFont = TTF_OpenFont("assets/fonts/press_start/prstart.ttf", 14);
+    if (!menuFont || !hudFont) { /* ... error handling ... */ return 1; }
 
-	// spawn window
-	SDL_Window* window = SDL_CreateWindow(
-		"Hello SDL2",
-		SDL_WINDOWPOS_UNDEFINED,
-		SDL_WINDOWPOS_UNDEFINED,
-		640, 480,
-		SDL_WINDOW_SHOWN
-	);
-	if (!window) {
-		std::cerr << "Window could not initialize: " << SDL_GetError () << std::endl;
-		TTF_Quit ();
-		IMG_Quit ();
-		SDL_Quit();
-		return 1;
-	}
-
-	// initialize renderer
-	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-	if (!renderer) {
-		std::cerr << "Renderer could not initialize: " << SDL_GetError () << std::endl;
-		SDL_DestroyWindow(window);
-		TTF_Quit ();
-		IMG_Quit ();
-		SDL_Quit();
-		return 1;
-	}
-	SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
-
-	// initialize audio system
-	if (!AudioSystem::init()) {
-		std::cerr << "Audio system could not initialize." << std::endl;
-		SDL_DestroyRenderer (renderer);
-		SDL_DestroyWindow(window);
-		TTF_Quit ();
-		IMG_Quit ();
-		SDL_Quit();
-		return 1;
-	}
-
-	// menu font
-	TTF_Font* menuFont = TTF_OpenFont ("assets/fonts/press_start/prstart.ttf", 28);
-	if (!menuFont) {
-		std::cerr << "Menu font could not initialize: " << TTF_GetError () << std::endl;
-		AudioSystem::quit ();
-		SDL_DestroyRenderer (renderer);
-		SDL_DestroyWindow (window);
-		TTF_Quit ();
-		IMG_Quit ();
-		SDL_Quit ();
-		return 1;
-	}
-
-	TTF_Font* hudFont = TTF_OpenFont ("assets/fonts/press_start/prstart.ttf", 14);
-	if (!hudFont) {
-		std::cerr << "HUD font could not initialize: " << TTF_GetError () << std:: endl;
-		AudioSystem::quit ();
-		SDL_DestroyRenderer (renderer);
-		SDL_DestroyWindow (window);
-		TTF_Quit ();
-		IMG_Quit ();
-		SDL_Quit ();
-		return 1;
-	}
-
-	// main menu resources
-	SDL_Color white {255, 255, 255, 255};
-	SDL_Color gray = {150, 150, 150, 255};
-	SDL_Texture* startTexture = renderText (renderer, menuFont, "Start Game", white);
-	SDL_Texture* desktopTexture = renderText (renderer, menuFont, "Quit to Desktop", white);
-	SDL_Texture* startTextureHover = renderText (renderer, menuFont, "Start Game", gray);
-	SDL_Texture* desktopTextureHover = renderText (renderer, menuFont, "Quit to Desktop", gray);
-	// texture dimensions for positioning
-	int startW, startH, desktopW, desktopH;
-	SDL_QueryTexture (startTexture, NULL, NULL, &startW, &startH);
-	SDL_QueryTexture (desktopTexture, NULL, NULL, &desktopW, &desktopH);
-	SDL_Rect startButtonRect = {640 / 2 - startW / 2, 200, startW, startH};
-	SDL_Rect desktopButtonRect = {640 / 2 - desktopW / 2, 260, desktopW, desktopH};
-
-	// pause menu
-	SDL_Texture* continueTexture = renderText (renderer, menuFont, "Continue", white);
-	SDL_Texture* menuTexture = renderText (renderer, menuFont, "Quit to Menu", white);
-	SDL_Texture* continueTextureHover = renderText (renderer, menuFont, "Continue", gray);
-	SDL_Texture* menuTextureHover = renderText (renderer, menuFont, "Quit to Menu", gray);
-	// desktop button is reused
-	int continueW, continueH, menuW, menuH;
-	SDL_QueryTexture (continueTexture, NULL, NULL, &continueW, &continueH);
-	SDL_QueryTexture (menuTexture, NULL, NULL, &menuW, &menuH);
-	SDL_Rect continueButtonRect = {640 / 2 - continueW / 2, 140, continueW, continueH};
-	SDL_Rect menuButtonRect = {640 / 2 - menuW / 2, 200, menuW, menuH};
-	// desktop button is reused
-
-	// game over
-	SDL_Texture* gameOverTexture = renderText (renderer, menuFont, "GAME OVER", {255, 0, 0, 255});
-	SDL_Texture* restartTexture = renderText (renderer, menuFont, "Restart", white);
-	SDL_Texture* restartTextureHover = renderText (renderer, menuFont, "Restart", gray);
-	// quit to menu, desktop reused from above
-	int gameOverW, gameOverH, restartW, restartH;
-	SDL_QueryTexture (gameOverTexture, NULL, NULL, &gameOverW, &gameOverH);
-	SDL_QueryTexture (restartTexture, NULL, NULL, &restartW, &restartH);
-	SDL_Rect gameOverRect = {640 / 2 - gameOverW / 2, 80, gameOverW, gameOverH};
-	SDL_Rect restartButtonRect = {640 / 2 - restartW / 2, 140, restartW, restartH};
-
-	// menu background texture eventually
-	// SDL_Texture* menuBackground = IMG_LoadTexture (renderer, "assets/ui/menu_background.png");
-
-	EntityManager entityManager (renderer);
-	entityManager.setScreenDimensions (640, 480);
-
-	// load music, initialzie input handler
-	MusicTrack menu_music("assets/audio/patient_rituals.mp3");
-	MusicTrack level_music("assets/audio/level_theme.mp3");
-	InputHandler handler;
-
-	// load tileset and map once
-	Spritesheet sheet(renderer, "assets/tilesets/Dungeon_16x16_asset_pack/tileset.png", 16, 16);
-    int* collidables = new int[14]{0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 26, -1}; // Manage this memory
-    Tilemap surface_map(&sheet, 16, 16, 6, 7, collidables, "assets/maps/test_map_surfaces.txt");
-    Tilemap trapdoor_map(&sheet, 16, 16, 6, 7, collidables, "assets/maps/test_map_trapdoors.txt");
-
-	// Game Loop Variables
-	GameState currentState = GameState::MAIN_MENU;
-	bool gameRunning = true;
-	SDL_Event event;
-	float lastTime = SDL_GetTicks () / 1000.0f;
-	int mouseX = 0, mouseY = 0;
-	bool mousePressed = false;
-	
-	menu_music.play(-1);
-	menu_music.setVolume(10);
-
-	// game loop
-	while (gameRunning) {
-	// handle events (e.g., movement)
-	mousePressed = false;
-	while (SDL_PollEvent (&event)) {
-		switch (event.type) {
-		case SDL_QUIT:
-			gameRunning = false;
-			break;
-		case SDL_KEYDOWN:
-			if (!event.key.repeat) {
-				handler.handle_keydown (event.key.keysym.sym);
-			}
-			// escape key
-			if (event.key.keysym.sym == SDLK_ESCAPE) {
-				if (currentState == GameState::PLAYING) {
-					currentState = GameState::PAUSED;
-					level_music.setVolume (10);
-				} else if (currentState == GameState::MAIN_MENU || currentState == GameState::GAME_OVER) {
-					gameRunning = false;
-				} else if (currentState == GameState::PAUSED) {
-					currentState = GameState::PLAYING;
-					level_music.setVolume (50);
-				}
-			}
-			break;
-		case SDL_KEYUP:
-			handler.handle_keyup(event.key.keysym.sym);
-			break;
-		case SDL_MOUSEMOTION:
-			handler.handle_mousemotion(event.motion.x, event.motion.y);
-			mouseX = event.motion.x;
-			mouseY = event.motion.y;
-			break;
-		case SDL_MOUSEBUTTONDOWN:
-			handler.handle_mousebuttondown(event.button.button, event.button.x, event.button.y);
-			if (event.button.button == SDL_BUTTON_LEFT) {
-				mousePressed = true;
-			}
-			break;
-		case SDL_MOUSEBUTTONUP:
-			handler.handle_mousebuttonup(event.button.button, event.button.x, event.button.y);
-			break;
-		}
-	}
-
-	// time stuff
-	Uint32 currentTime = SDL_GetTicks ();
-	float time = currentTime / 1000.0f;
-	float deltaTime = time - lastTime;
-	lastTime = time;
-	if (deltaTime > 0.1f) deltaTime = 0.1f;
-
-	SDL_RenderClear (renderer);
-
-	SDL_Point mousePoint = {mouseX, mouseY};
-	bool onStart = SDL_PointInRect (&mousePoint, &startButtonRect);
-	bool onDesktop = SDL_PointInRect (&mousePoint, &desktopButtonRect);
-	bool onContinue = SDL_PointInRect (&mousePoint, &continueButtonRect);
-	bool onMenu = SDL_PointInRect (&mousePoint, &menuButtonRect);
-	bool onRestart = SDL_PointInRect (&mousePoint, &restartButtonRect);
+    // --- Menu Resources ---
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Color gray = {150, 150, 150, 255};
+    SDL_Color red = {255, 0, 0, 255};
+    // Main Menu
+    SDL_Texture* startTexture = renderText(renderer, menuFont, "Start Game", white);
+    SDL_Texture* desktopTexture = renderText(renderer, menuFont, "Quit to Desktop", white);
+    SDL_Texture* startTextureHover = renderText(renderer, menuFont, "Start Game", gray);
+    SDL_Texture* desktopTextureHover = renderText(renderer, menuFont, "Quit to Desktop", gray);
+    int startW, startH, desktopW, desktopH;
+    SDL_QueryTexture(startTexture, NULL, NULL, &startW, &startH);
+    SDL_QueryTexture(desktopTexture, NULL, NULL, &desktopW, &desktopH);
+    SDL_Rect startButtonRect = {320 - startW / 2, 200, startW, startH};
+    SDL_Rect desktopButtonRect = {320 - desktopW / 2, 260, desktopW, desktopH};
+    // Pause Menu
+    SDL_Texture* continueTexture = renderText(renderer, menuFont, "Continue", white);
+    SDL_Texture* menuTexture = renderText(renderer, menuFont, "Quit to Menu", white);
+    SDL_Texture* continueTextureHover = renderText(renderer, menuFont, "Continue", gray);
+    SDL_Texture* menuTextureHover = renderText(renderer, menuFont, "Quit to Menu", gray);
+    int continueW, continueH, menuW, menuH;
+    SDL_QueryTexture(continueTexture, NULL, NULL, &continueW, &continueH);
+    SDL_QueryTexture(menuTexture, NULL, NULL, &menuW, &menuH);
+    SDL_Rect continueButtonRect = {320 - continueW / 2, 140, continueW, continueH};
+    SDL_Rect menuButtonRect = {320 - menuW / 2, 200, menuW, menuH};
+    // Game Over Menu
+    SDL_Texture* gameOverTexture = renderText(renderer, menuFont, "GAME OVER", red);
+    SDL_Texture* restartTexture = renderText(renderer, menuFont, "Restart", white);
+    SDL_Texture* restartTextureHover = renderText(renderer, menuFont, "Restart", gray);
+    int gameOverW, gameOverH, restartW, restartH;
+    SDL_QueryTexture(gameOverTexture, NULL, NULL, &gameOverW, &gameOverH);
+    SDL_QueryTexture(restartTexture, NULL, NULL, &restartW, &restartH);
+    SDL_Rect gameOverRect = {320 - gameOverW / 2, 80, gameOverW, gameOverH};
+    SDL_Rect restartButtonRect = {320 - restartW / 2, 140, restartW, restartH};
+    // Shared button rects for pause/game over
+    SDL_Rect pauseMenuButtonRect = menuButtonRect; // Reposition if needed
+    SDL_Rect pauseDesktopButtonRect = desktopButtonRect;
+    SDL_Rect gameOverMenuButtonRect = {320 - menuW / 2, 200, menuW, menuH}; // Same pos as pause
+    SDL_Rect gameOverDesktopButtonRect = {320 - desktopW / 2, 260, desktopW, desktopH}; // Same pos as main
 
 
-	SDL_Rect overlayRect = {0, 0, 640, 480};
+    // --- Game Systems ---
+    EntityManager entityManager(renderer);
+    entityManager.setScreenDimensions(640, 480);
+    InputHandler handler;
+    MusicTrack menu_music("assets/audio/patient_rituals.mp3");
+    MusicTrack level_music("assets/audio/level_theme.mp3");
 
-	switch (currentState) {
-	// main menu case
-	case GameState::MAIN_MENU: {
-		// click main menu buttons
-		if (mousePressed) {
-			if (onStart) {
-				currentState = GameState::PLAYING;
-				menu_music.pause ();
-				level_music.play (-1);
-				level_music.setVolume (50);
+    // --- Tilemap Setup ---
+    Spritesheet sheet(renderer, "assets/tilesets/Dungeon_16x16_asset_pack/tileset.png", 16, 16);
+    // Define which tile indices map to which collision layers
+    std::map<int, CollisionLayer> collisionMap;
+    // Example: Indices 0-8, 12-14, 26 are walls/obstacles/boundaries
+    int wall_indices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 26};
+    for (int index : wall_indices) {
+        // Assign a combined layer for simplicity, or be more specific
+        collisionMap[index] = CollisionLayer::LEVEL_WALL | CollisionLayer::LEVEL_OBSTACLE | CollisionLayer::LEVEL_BOUNDARY;
+    }
+    // Add other layers (pits, hazards) if needed: collisionMap[PIT_INDEX] = CollisionLayer::LEVEL_PIT;
 
-				entityManager.clearAll ();
+    // Create tilemaps using the collision map
+    // Assuming map dimensions are known or loaded from file meta-data
+    // For now, hardcoding dimensions based on file names (e.g., 40x30 tiles = 640x480)
+    const int MAP_WIDTH_TILES = 40;
+    const int MAP_HEIGHT_TILES = 30;
+    Tilemap surface_map(&sheet, 16, 16, MAP_WIDTH_TILES, MAP_HEIGHT_TILES, collisionMap, "assets/maps/test_map_surfaces.txt");
+    Tilemap collision_layer_map(&sheet, 16, 16, MAP_WIDTH_TILES, MAP_HEIGHT_TILES, collisionMap, "assets/maps/test_map_trapdoors.txt"); // Use this map for collision checks
 
-				Player* playerPtr = entityManager.addEntity<Player>(
-					renderer, 
-					&handler, 
-					320, 400, 
-					100.0f
-				);
 
-				// Define Geezer animations (can be loaded from config later)
-				int* geezer_idle = new int[2]{0, -1};
-				int* geezer_walk = new int[2]{0, -1};
-				int* geezer_atk = new int[2]{0, -1};
-				int** geezerAnimations = new int*[4];
-				geezerAnimations[0] = geezer_idle;
-				geezerAnimations[1] = geezer_walk;
-				geezerAnimations[2] = geezer_atk;
-				geezerAnimations[3] = nullptr;
-				// TODO: Geezer Animations
-				if (playerPtr) {
-					entityManager.addEntity<Geezer>(
-						renderer,
-						&entityManager,
-						"assets/sprites/geezer.png",
-						24, 24,
-						320, 100,
-						geezerAnimations,
-						0.15f, 120.0f,
-						playerPtr
-					);
-				} else {
-					std::cerr << "Player failed to initialize." << std::endl;
-					currentState = GameState::MAIN_MENU;
-					level_music.stop ();
-					menu_music.play (-1);
-				}
+    // --- Game Loop Variables ---
+    GameState currentState = GameState::MAIN_MENU;
+    bool gameRunning = true;
+    SDL_Event event;
+    Uint32 lastTick = SDL_GetTicks(); // Use Uint32 for ticks
+    int mouseX = 0, mouseY = 0;
+    bool mousePressed = false;
 
-				mousePressed = false;
-			} else if (onDesktop) {
-				gameRunning = false;
-			}
-		}
+    menu_music.play(-1);
+    menu_music.setVolume(10); // Low volume for menu
 
-		// menu background someday
-		// SDL_RenderCopy (renderer, menuBackground, NULL, NULL);
+    // --- Main Game Loop ---
+    while (gameRunning) {
+        // --- Time Calculation ---
+        Uint32 currentTick = SDL_GetTicks();
+        // Delta time in seconds (ensure float division)
+        float deltaTime = (currentTick - lastTick) / 1000.0f;
+        // Clamp delta time to avoid large jumps (e.g., during debugging)
+        if (deltaTime > 0.1f) deltaTime = 0.1f;
+        lastTick = currentTick;
+        float time = currentTick / 1000.0f; // Total time in seconds
 
-		// color for now :pensive:
-		SDL_SetRenderDrawColor (renderer, 50, 20, 10, 255);
-		SDL_RenderFillRect (renderer, NULL);
-		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
+        // --- Event Handling ---
+        mousePressed = false; // Reset mouse press state each frame
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+            case SDL_QUIT:
+                gameRunning = false;
+                break;
+            case SDL_KEYDOWN:
+                if (!event.key.repeat) {
+                    handler.handle_keydown(event.key.keysym.sym);
+                    // Pause/Resume Toggle
+                    if (event.key.keysym.sym == SDLK_ESCAPE) {
+                        if (currentState == GameState::PLAYING) {
+                            currentState = GameState::PAUSED;
+                            level_music.setVolume(10); // Lower volume when paused
+                        } else if (currentState == GameState::PAUSED) {
+                            currentState = GameState::PLAYING;
+                            level_music.setVolume(50); // Restore volume
+                        } else if (currentState == GameState::MAIN_MENU || currentState == GameState::GAME_OVER) {
+                             gameRunning = false; // Esc quits from main/game over
+                        }
+                    }
+                }
+                break;
+            case SDL_KEYUP:
+                handler.handle_keyup(event.key.keysym.sym);
+                break;
+            case SDL_MOUSEMOTION:
+                handler.handle_mousemotion(event.motion.x, event.motion.y);
+                mouseX = event.motion.x;
+                mouseY = event.motion.y;
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+                handler.handle_mousebuttondown(
+                    event.button.button, event.button.x, event.button.y
+                );
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    mousePressed = true;
+                }
+                break;
+            case SDL_MOUSEBUTTONUP:
+                handler.handle_mousebuttonup(
+                    event.button.button, event.button.x, event.button.y
+                );
+                break;
+            }
+        }
 
-		SDL_RenderCopy (renderer, onStart ? startTextureHover : startTexture, NULL, &startButtonRect);
-		SDL_RenderCopy (renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
-	} break;
+        // --- Update Game State ---
+        SDL_Point mousePoint = {mouseX, mouseY};
 
-	case GameState::PAUSED: {
-		surface_map.draw (renderer, 0, 0);
-		trapdoor_map.draw (renderer, 0, 0);
-		entityManager.render ();
+        switch (currentState) {
+        case GameState::MAIN_MENU: {
+            bool onStart = SDL_PointInRect(&mousePoint, &startButtonRect);
+            bool onDesktop = SDL_PointInRect(&mousePoint, &desktopButtonRect);
 
-		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_BLEND);
-		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 128);
-		SDL_RenderFillRect (renderer, &overlayRect);
-		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_NONE);
-		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
+            if (mousePressed) {
+                if (onStart) {
+                    currentState = GameState::PLAYING;
+                    setupNewGame(entityManager, renderer, handler); // Setup entities
+                    menu_music.pause();
+                    level_music.play(-1);
+                    level_music.setVolume(50);
+                    mousePressed = false; // Consume click
+                } else if (onDesktop) {
+                    gameRunning = false;
+                }
+            }
+            // Render Menu
+            SDL_SetRenderDrawColor(renderer, 50, 20, 10, 255); // Background
+            SDL_RenderClear(renderer);
+            SDL_RenderCopy(renderer, onStart ? startTextureHover : startTexture, NULL, &startButtonRect);
+            SDL_RenderCopy(renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
 
-		// click pause buttons
-		if (mousePressed) {
-			if (onContinue) {
-				currentState = GameState::PLAYING;
-				level_music.setVolume (50);
-				mousePressed = false;
-			} else if (onMenu) {
-				currentState = GameState::MAIN_MENU;
-				entityManager.clearAll ();
-				level_music.stop ();
-				menu_music.play(-1);
-				mousePressed = false;
-			} else if (onDesktop) {
-				gameRunning = false;
-			}
-		}
+        } break;
 
-		SDL_RenderCopy (renderer, onContinue ? continueTextureHover : continueTexture, NULL, &continueButtonRect);
-		SDL_RenderCopy (renderer, onMenu ? menuTextureHover : menuTexture, NULL, &menuButtonRect);
-		SDL_RenderCopy (renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
-	} break;
+        case GameState::PLAYING: {
+            // Update Entities & Collisions
+            entityManager.update(&collision_layer_map, time, deltaTime); // Pass the collision map
 
-	case GameState::PLAYING: {
-		entityManager.update (&trapdoor_map, time, deltaTime);
-		entityManager.cleanupEntities ();
+            // Check for Game Over condition
+            Player* player = entityManager.getPlayer();
+            if (!player || !player->isAlive()) {
+                currentState = GameState::GAME_OVER;
+                level_music.stop();
+                // Optionally play game over sound
+                break; // Skip rendering this frame if game just ended
+            }
 
-		Player* player= entityManager.getPlayer ();
-		if (!player || !player->isAlive ()) {
-			currentState = GameState::GAME_OVER;
-			level_music.stop ();
+            // Render Game World
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black background
+            SDL_RenderClear(renderer);
+            surface_map.draw(renderer, 0, 0); // Draw visual map
+            // collision_layer_map.draw(renderer, 0, 0); // Optionally draw collision map for debug
+            entityManager.render();
 
-			break;
-		}
+            // Render HUD
+            std::stringstream healthText;
+            healthText << "Health: " << static_cast<int>(player->getHealth())
+                       << " / " << static_cast<int>(player->getMaxHealth());
+            SDL_Texture* healthTexture = renderText(renderer, hudFont, healthText.str(), white);
+            if (healthTexture) {
+                int healthW, healthH;
+                SDL_QueryTexture(healthTexture, NULL, NULL, &healthW, &healthH);
+                SDL_Rect healthRect = {10, 10, healthW, healthH};
+                SDL_RenderCopy(renderer, healthTexture, NULL, &healthRect);
+                SDL_DestroyTexture(healthTexture); // Clean up texture
+            }
 
-		// render game
-		surface_map.draw (renderer, 0, 0);
-		trapdoor_map.draw (renderer, 0, 0);
-		entityManager.render ();
+        } break;
 
-		// render HUD
-		std::stringstream healthText;
-		healthText << "Health: " << static_cast<int>(player->getHealth()) << " / " << static_cast<int>(player->getMaxHealth());
-		SDL_Texture* healthTexture = renderText (renderer, hudFont, healthText.str(), white);
-		if (healthTexture) {
-			int healthW, healthH;
-			SDL_QueryTexture (healthTexture, NULL, NULL, &healthW, &healthH);
-			SDL_Rect healthRect = {10, 10, healthW, healthH};
-			SDL_RenderCopy (renderer, healthTexture, NULL, &healthRect);
-			SDL_DestroyTexture (healthTexture);
-		}
-	} break;
+        case GameState::PAUSED: {
+             bool onContinue = SDL_PointInRect(&mousePoint, &continueButtonRect);
+             bool onMenu = SDL_PointInRect(&mousePoint, &pauseMenuButtonRect);
+             bool onDesktop = SDL_PointInRect(&mousePoint, &pauseDesktopButtonRect);
 
-	case GameState::GAME_OVER: {
-		surface_map.draw (renderer, 0, 0);
-		trapdoor_map.draw (renderer, 0, 0);
-		entityManager.render ();
+             if (mousePressed) {
+                 if (onContinue) {
+                     currentState = GameState::PLAYING;
+                     level_music.setVolume(50); // Restore volume
+                     mousePressed = false;
+                 } else if (onMenu) {
+                     currentState = GameState::MAIN_MENU;
+                     entityManager.clearAll(); // Clear entities when going to menu
+                     level_music.stop();
+                     menu_music.play(-1);
+                     mousePressed = false;
+                 } else if (onDesktop) {
+                     gameRunning = false;
+                 }
+             }
 
-		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_BLEND);
-		SDL_SetRenderDrawColor (renderer, 20, 0, 0, 160);
-		SDL_RenderFillRect (renderer, &overlayRect);
-		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_NONE);
-		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
+             // Render Paused State (Game world dimmed)
+             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+             SDL_RenderClear(renderer);
+             surface_map.draw(renderer, 0, 0);
+             entityManager.render(); // Render entities in their paused state
 
-		if (mousePressed) {
-			if (onRestart) {
-				currentState = GameState::PLAYING;
-				level_music.play(-1);
-				level_music.setVolume (50);
+             // Dimming Overlay
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 128); // Semi-transparent black
+             SDL_Rect overlayRect = {0, 0, 640, 480};
+             SDL_RenderFillRect(renderer, &overlayRect);
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE); // Reset blend mode
 
-				entityManager.clearAll ();
+             // Render Pause Menu Buttons
+             SDL_RenderCopy(renderer, onContinue ? continueTextureHover : continueTexture, NULL, &continueButtonRect);
+             SDL_RenderCopy(renderer, onMenu ? menuTextureHover : menuTexture, NULL, &pauseMenuButtonRect);
+             SDL_RenderCopy(renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &pauseDesktopButtonRect);
 
-				Player* playerPtr = entityManager.addEntity<Player>(
-					renderer, 
-					&handler, 
-					320, 400, 
-					100.0f
-				);
+        } break;
 
-				// Define Geezer animations (can be loaded from config later)
-				int* geezer_idle = new int[2]{0, -1};
-				int* geezer_walk = new int[2]{0, -1};
-				int* geezer_atk = new int[2]{0, -1};
-				int** geezerAnimations = new int*[4];
-				geezerAnimations[0] = geezer_idle;
-				geezerAnimations[1] = geezer_walk;
-				geezerAnimations[2] = geezer_atk;
-				geezerAnimations[3] = nullptr;
-				// TODO: Geezer Animations
-				if (playerPtr) {
-					entityManager.addEntity<Geezer>(
-						renderer,
-						&entityManager,
-						"assets/sprites/geezer.png",
-						24, 24,
-						320, 100,
-						geezerAnimations,
-						0.15f, 120.0f,
-						playerPtr
-					);
-				} else {
-					std::cerr << "Player failed to initialize." << std::endl;
-					currentState = GameState::MAIN_MENU;
-					level_music.stop ();
-					menu_music.play (-1);
-				}
-			} else if (onMenu) {
-				currentState = GameState::MAIN_MENU;
-				entityManager.clearAll ();
-				menu_music.play(-1);
-				mousePressed = false;
-			} else if (onDesktop) {
-				gameRunning = false;
-			}
-		}
-		SDL_RenderCopy (renderer, gameOverTexture, NULL, &gameOverRect);
-		SDL_RenderCopy (renderer, onRestart ? restartTextureHover : restartTexture, NULL, &restartButtonRect);
-		SDL_RenderCopy (renderer, onMenu ? menuTextureHover : menuTexture, NULL, &menuButtonRect);
-		SDL_RenderCopy (renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
-	} break;
+        case GameState::GAME_OVER: {
+             bool onRestart = SDL_PointInRect(&mousePoint, &restartButtonRect);
+             bool onMenu = SDL_PointInRect(&mousePoint, &gameOverMenuButtonRect);
+             bool onDesktop = SDL_PointInRect(&mousePoint, &gameOverDesktopButtonRect);
 
-	case GameState::QUIT:
-		gameRunning = false;
-		break;
-	}
+             if (mousePressed) {
+                 if (onRestart) {
+                     currentState = GameState::PLAYING;
+                     setupNewGame(entityManager, renderer, handler); // Restart game
+                     level_music.play(-1);
+                     level_music.setVolume(50);
+                     mousePressed = false;
+                 } else if (onMenu) {
+                     currentState = GameState::MAIN_MENU;
+                     entityManager.clearAll();
+                     menu_music.play(-1);
+                     mousePressed = false;
+                 } else if (onDesktop) {
+                     gameRunning = false;
+                 }
+             }
 
-	SDL_RenderPresent (renderer);
-}
+             // Render Game Over State (Game world dimmed red)
+             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+             SDL_RenderClear(renderer);
+             surface_map.draw(renderer, 0, 0);
+             entityManager.render(); // Render entities (e.g., dead player)
 
-entityManager.clearAll ();
-delete[] collidables;
+             // Dimming Overlay (Red tint)
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+             SDL_SetRenderDrawColor(renderer, 100, 0, 0, 160); // Semi-transparent red
+             SDL_Rect overlayRect = {0, 0, 640, 480};
+             SDL_RenderFillRect(renderer, &overlayRect);
+             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-SDL_DestroyTexture(startTexture);
-SDL_DestroyTexture(startTextureHover);
-SDL_DestroyTexture(desktopTexture);
-SDL_DestroyTexture(desktopTextureHover);
+             // Render Game Over Text & Buttons
+             SDL_RenderCopy(renderer, gameOverTexture, NULL, &gameOverRect);
+             SDL_RenderCopy(renderer, onRestart ? restartTextureHover : restartTexture, NULL, &restartButtonRect);
+             SDL_RenderCopy(renderer, onMenu ? menuTextureHover : menuTexture, NULL, &gameOverMenuButtonRect);
+             SDL_RenderCopy(renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &gameOverDesktopButtonRect);
 
-SDL_DestroyTexture(continueTexture);
-SDL_DestroyTexture(continueTextureHover);
-SDL_DestroyTexture(menuTexture);
-SDL_DestroyTexture(menuTextureHover);
+        } break;
 
-SDL_DestroyTexture (gameOverTexture);
-SDL_DestroyTexture (restartTexture);
+        case GameState::QUIT: // Should not be reached in loop, but handle defensively
+            gameRunning = false;
+            break;
+        }
 
-TTF_CloseFont(menuFont);
-TTF_CloseFont(hudFont);
-AudioSystem::quit ();
-SDL_DestroyRenderer (renderer);
-SDL_DestroyWindow(window);
-TTF_Quit ();
-IMG_Quit ();
-SDL_Quit();
-return 0;
+        // --- Present Frame ---
+        SDL_RenderPresent(renderer);
+
+        // --- Cleanup Entities Marked for Deletion ---
+        // Done once per frame, after updates and rendering potentially
+        entityManager.cleanupEntities();
+
+    } // End Main Game Loop
+
+    // --- Cleanup ---
+    entityManager.clearAll(); // Ensure all entities are cleared
+
+    // Destroy Textures
+    SDL_DestroyTexture(startTexture);
+    SDL_DestroyTexture(desktopTexture);
+    SDL_DestroyTexture(startTextureHover);
+    SDL_DestroyTexture(desktopTextureHover);
+    SDL_DestroyTexture(continueTexture);
+    SDL_DestroyTexture(menuTexture);
+    SDL_DestroyTexture(continueTextureHover);
+    SDL_DestroyTexture(menuTextureHover);
+    SDL_DestroyTexture(gameOverTexture);
+    SDL_DestroyTexture(restartTexture);
+    SDL_DestroyTexture(restartTextureHover);
+
+    // Close Fonts
+    TTF_CloseFont(menuFont);
+    TTF_CloseFont(hudFont);
+
+    // Shutdown Systems
+    AudioSystem::quit();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    TTF_Quit();
+    IMG_Quit();
+    SDL_Quit();
+
+    return 0;
 }
