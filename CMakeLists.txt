@@ -28,3 +28,5 @@ target_link_libraries(ucm-gdc-s25
     SDL2_mixer
     SDL2_ttf
 )
+
+file(COPY assets DESTINATION ${CMAKE_BINARY_DIR}) 

@@ -1,5 +1,6 @@
 #include "entity.h"
 #include <cstdlib>
+#include <iostream>
 
 Entity::Entity(SDL_Renderer* renderer, const char* sprite_path, int sprite_width, int sprite_height, float x, float y, int** animations)
     : x(x), y(y), spriteWidth(sprite_width), spriteHeight(sprite_height), flipped(false),

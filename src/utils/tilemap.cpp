@@ -24,7 +24,7 @@ Tilemap::Tilemap(Spritesheet *sheet, int tile_width, int tile_height, int map_wi
 
 Tilemap::~Tilemap() {
     delete[] tiles;
-    delete[] tiles_with_collider;
+    // delete[] tiles_with_collider;
     delete[] collider;
 }
 

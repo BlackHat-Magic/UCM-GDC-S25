@@ -21,13 +21,13 @@ enum class GameState {
 SDL_Texture* renderText (SDL_Renderer* renderer, TTF_Font* font, const std::string &text, SDL_Color color) {
 	SDL_Surface* surface = TTF_RenderText_Solid (font, text.c_str(), color);
 	if (!surface) {
-		std::cerr << "Failed o render text surface: " << TTF_GetError () << std::endl;
+		std::cerr << "Failed to render text surface: " << TTF_GetError () << std::endl;
 		return nullptr;
 	}
 
 	SDL_Texture* texture = SDL_CreateTextureFromSurface (renderer, surface);
 	if (!texture) {
-		std::cerr << "Failed to create texture from rednered text: " << SDL_GetError () << std::endl;
+		std::cerr << "Failed to create texture from rendered text: " << SDL_GetError () << std::endl;
 	}
 	SDL_FreeSurface (surface);
 	return (texture);
@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	// initialize SDL_Image
-	if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) < 0) {
+	if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
 		std::cerr << "SDL_image could not initialize: " << IMG_GetError () << std::endl;
 		return 1;
 	}
@@ -151,8 +151,8 @@ int main(int argc, char* argv[]) {
 	// load tileset and map once
 	Spritesheet sheet(renderer, "assets/tilesets/Dungeon_16x16_asset_pack/tileset.png", 16, 16);
     int* collidables = new int[14]{0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 26, -1}; // Manage this memory
-    Tilemap surface_map(&sheet, 16, 16, 40, 30, nullptr, "assets/maps/test_map_surfaces.txt"); // Adjusted size, no colliders needed for surface?
-    Tilemap trapdoor_map(&sheet, 16, 16, 40, 30, collidables, "assets/maps/test_map_trapdoors.txt"); // Adjusted size
+    Tilemap surface_map(&sheet, 16, 16, 6, 7, collidables, "assets/maps/test_map_surfaces.txt");
+    Tilemap trapdoor_map(&sheet, 16, 16, 6, 7, collidables, "assets/maps/test_map_trapdoors.txt");
 
 	// Game Loop Variables
 	GameState currentState = GameState::MAIN_MENU;
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
 	int mouseX = 0, mouseY = 0;
 	bool mousePressed = false;
 	
-	menu_music.play(-2);
+	menu_music.play(-1);
 	menu_music.setVolume(50);
 
 	// game loop
@@ -182,10 +182,12 @@ int main(int argc, char* argv[]) {
 			if (event.key.keysym.sym == SDLK_ESCAPE) {
 				if (currentState == GameState::PLAYING) {
 					currentState = GameState::PAUSED;
+					level_music.setVolume (10);
 				} else if (currentState == GameState::MAIN_MENU) {
 					gameRunning = false;
 				} else if (currentState == GameState::PAUSED) {
 					currentState = GameState::PLAYING;
+					level_music.setVolume (50);
 				}
 			}
 			break;
@@ -229,6 +231,9 @@ int main(int argc, char* argv[]) {
 		if (mousePressed) {
 			if (onStart) {
 				currentState = GameState::PLAYING;
+				menu_music.pause ();
+				level_music.play (-1);
+				level_music.setVolume (50);
 
 				player = new Player (renderer, &handler, 300, 300);
 
@@ -239,7 +244,7 @@ int main(int argc, char* argv[]) {
 				geezerAnimations[2] = new int[2]{0, -1};
 				// TODO: Geezer Animations
 
-				geezer = new Geezer (renderer, "asset/ssprites/geezer.png", 24, 24, 300, 150, geezerAnimations, 0.1f, 150.0f, player);
+				geezer = new Geezer (renderer, "assets/sprites/geezer.png", 24, 24, 300, 150, geezerAnimations, 0.1f, 150.0f, player);
 				mousePressed = false;
 			} else if (onQuit) {
 				gameRunning = false;
@@ -255,10 +260,23 @@ int main(int argc, char* argv[]) {
 		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
 		SDL_RenderCopy (renderer, onStart ? startTextureHover : startTexture, NULL, &startButtonRect);
-		SDL_RenderCopy (renderer, onStart ? quitTextureHover : quitTexture, NULL, &quitButtonRect);
+		SDL_RenderCopy (renderer, onQuit ? quitTextureHover : quitTexture, NULL, &quitButtonRect);
 	} break;
 
 	case GameState::PAUSED: {
+		if (player && geezer) {
+			surface_map.draw (renderer, 0, 0);
+			trapdoor_map.draw (renderer, 0, 0);
+			player->render(renderer);
+			geezer->render(renderer);
+		}
+
+		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_BLEND);
+		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 150);
+		SDL_Rect overlayRect = {0, 0, 640, 480};
+		SDL_RenderFillRect (renderer, &overlayRect);
+		SDL_SetRenderDrawBlendMode (renderer, SDL_BLENDMODE_NONE);
+		SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 		SDL_Point mousePoint = {mouseX, mouseY};
 		bool onContinue = SDL_PointInRect (&mousePoint, &continueButtonRect);
 		bool onMenu = SDL_PointInRect (&mousePoint, &menuButtonRect);
@@ -268,14 +286,31 @@ int main(int argc, char* argv[]) {
 		if (mousePressed) {
 			if (onContinue) {
 				currentState = GameState::PLAYING;
+				level_music.setVolume (50);
 				mousePressed = false;
 			} else if (onMenu) {
 				currentState = GameState::MAIN_MENU;
+				delete player; player = nullptr;
+				std::cout << "dada" << std::endl;
+				if (geezerAnimations) {
+					delete[] geezerAnimations[0];
+					delete[] geezerAnimations[1];
+					delete[] geezerAnimations[2];
+					delete[] geezerAnimations;
+					geezerAnimations = nullptr;
+				}
+				delete geezer; geezer = nullptr;
 				mousePressed = false;
+				level_music.pause();
+				menu_music.play(-1);
 			} else if (onDesktop) {
 				gameRunning = false;
 			}
 		}
+
+		SDL_RenderCopy (renderer, onContinue ? continueTextureHover : continueTexture, NULL, &continueButtonRect);
+		SDL_RenderCopy (renderer, onMenu ? menuTextureHover : menuTexture, NULL, &menuButtonRect);
+		SDL_RenderCopy (renderer, onDesktop ? desktopTextureHover : desktopTexture, NULL, &desktopButtonRect);
 	} break;
 
 	case GameState::PLAYING: {
@@ -313,7 +348,6 @@ if (geezerAnimations) {
 	delete[] geezerAnimations[0];
 	delete[] geezerAnimations[1];
 	delete[] geezerAnimations[2];
-	delete[] geezerAnimations[3];
 	delete[] geezerAnimations;
 }
 delete[] collidables;
